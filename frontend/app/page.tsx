@@ -127,6 +127,10 @@ export default function Dashboard() {
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false)
   const [analyzeResult, setAnalyzeResult] = useState<any | null>(null)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+  // ETA inputs within the analyzer (only relevant when the target is a bus)
+  const [analyzeSpeed, setAnalyzeSpeed] = useState<string>("25")
+  const [analyzeDestStationId, setAnalyzeDestStationId] = useState<string>("")
+  const [analyzeEtaResult, setAnalyzeEtaResult] = useState<number | null>(null)
 
   // ETA Calculator states (opened from telemetry table for buses)
   const [etaBus, setEtaBus] = useState<Bus | null>(null)
@@ -369,6 +373,7 @@ export default function Dashboard() {
       setAnalyzeImageFile(file)
       setAnalyzeImagePreview(URL.createObjectURL(file))
       setAnalyzeResult(null)
+      setAnalyzeEtaResult(null)
       setAnalyzeError(null)
     }
   }
@@ -409,6 +414,25 @@ export default function Dashboard() {
       const data = await response.json()
       setAnalyzeResult(data.result)
 
+      // For buses: si hay velocidad + estación destino, calcula y persiste el ETA
+      setAnalyzeEtaResult(null)
+      if (analyzeTargetType === "bus" && analyzeDestStationId) {
+        const { etaMin } = estimateEta(analyzeLatitude, analyzeLongitude, analyzeSpeed, analyzeDestStationId)
+        if (etaMin != null) {
+          await fetch(`${BACKEND_URL}/buses/${analyzeTargetId}/eta`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              stationId: Number(analyzeDestStationId),
+              etaMinutes: etaMin,
+              latitude: analyzeLatitude,
+              longitude: analyzeLongitude,
+            }),
+          }).catch(() => null)
+          setAnalyzeEtaResult(etaMin)
+        }
+      }
+
       // Refresh list of stations/buses so the rest of the UI matches the new data!
       await fetchData()
     } catch (err: any) {
@@ -425,6 +449,7 @@ export default function Dashboard() {
     setAnalyzeTargetType(type)
     setAnalyzeTargetId(id.toString())
     setAnalyzeResult(null)
+    setAnalyzeEtaResult(null)
     setAnalyzeError(null)
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" })
@@ -441,12 +466,12 @@ export default function Dashboard() {
     setEtaSaveMsg(null)
   }
 
-  // Compute the live ETA from the modal inputs
-  const computeEta = () => {
-    const dest = stations.find((s) => s.id.toString() === etaDestStationId)
-    const speed = parseFloat(etaSpeed)
-    const lat = parseFloat(etaLat)
-    const lon = parseFloat(etaLon)
+  // Shared ETA estimator: distancia Haversine + tiempo = distancia / velocidad
+  const estimateEta = (latStr: string, lonStr: string, speedStr: string, destStationId: string) => {
+    const dest = stations.find((s) => s.id.toString() === destStationId)
+    const speed = parseFloat(speedStr)
+    const lat = parseFloat(latStr)
+    const lon = parseFloat(lonStr)
 
     if (
       !dest ||
@@ -462,6 +487,9 @@ export default function Dashboard() {
     const etaMin = speed > 0 ? Math.round((distKm / speed) * 60) : null
     return { distKm, etaMin }
   }
+
+  // Compute the live ETA from the modal inputs
+  const computeEta = () => estimateEta(etaLat, etaLon, etaSpeed, etaDestStationId)
 
   // Persist the computed ETA (feeds the SITME assistant via arrivals table)
   const handleSaveEta = async () => {
@@ -886,7 +914,7 @@ export default function Dashboard() {
                             </tr>
                           ) : (
                             filtered.map((item) => (
-                              <tr key={item.id} className="hover:bg-slate-850/40 transition-colors">
+                              <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
                                 <td className="p-3.5 font-bold">
                                   {item.type === "station" ? (
                                     <span className="text-emerald-400 flex items-center gap-1">🏢 Estación</span>
@@ -898,7 +926,7 @@ export default function Dashboard() {
                                 <td className="p-3.5 text-slate-400">{item.detail}</td>
                                 <td className="p-3.5 font-mono text-xs text-slate-400">
                                   {item.latitude !== undefined && item.latitude !== null && item.longitude !== undefined && item.longitude !== null ? (
-                                    <span className="bg-slate-950 px-2 py-1 rounded border border-slate-850">
+                                    <span className="bg-slate-950 px-2 py-1 rounded border border-slate-800">
                                       {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}
                                     </span>
                                   ) : (
@@ -1056,6 +1084,7 @@ export default function Dashboard() {
                       onChange={(e) => {
                         setAnalyzeTargetId(e.target.value)
                         setAnalyzeResult(null)
+                        setAnalyzeEtaResult(null)
                       }}
                       required
                       className="w-full bg-slate-800 border border-slate-700 rounded-lg text-xs p-2.5 focus:ring-1 focus:ring-emerald-500 text-slate-200 cursor-pointer"
@@ -1103,6 +1132,67 @@ export default function Dashboard() {
                           className="w-full bg-slate-800 border border-slate-700 rounded-lg text-xs p-2 text-slate-200 focus:ring-1 focus:ring-emerald-500"
                         />
                       </div>
+                    </div>
+                  )}
+
+                  {/* ETA inputs (solo buses): velocidad + estación destino */}
+                  {analyzeTargetId && analyzeTargetType === "bus" && (
+                    <div className="bg-slate-800/20 p-3 rounded-lg border border-slate-800 flex flex-col gap-2">
+                      <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+                        🕐 Tiempo de Llegada (ETA)
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-500 block mb-0.5">Velocidad (km/h):</label>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={analyzeSpeed}
+                            onChange={(e) => setAnalyzeSpeed(e.target.value)}
+                            placeholder="Ej: 25"
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg text-xs p-2 text-slate-200 focus:ring-1 focus:ring-teal-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-500 block mb-0.5">Estación destino:</label>
+                          <select
+                            value={analyzeDestStationId}
+                            onChange={(e) => setAnalyzeDestStationId(e.target.value)}
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg text-xs p-2 text-slate-200 focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                          >
+                            <option value="">-- Seleccionar --</option>
+                            {stations.map((s) => (
+                              <option key={s.id} value={s.id} disabled={s.latitude == null || s.longitude == null}>
+                                {s.name}{s.latitude == null || s.longitude == null ? " (sin coords)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      {(() => {
+                        const { distKm, etaMin } = estimateEta(analyzeLatitude, analyzeLongitude, analyzeSpeed, analyzeDestStationId)
+                        if (!analyzeDestStationId) {
+                          return (
+                            <p className="text-[10px] text-slate-500 italic">
+                              Selecciona una estación destino para estimar cuánto tarda en llegar.
+                            </p>
+                          )
+                        }
+                        return (
+                          <div className="flex items-center gap-4 text-xs">
+                            <span className="text-slate-400">
+                              Distancia: <span className="font-mono font-bold text-teal-400">{distKm != null ? `${distKm} km` : "—"}</span>
+                            </span>
+                            <span className="text-slate-400">
+                              ETA: <span className="font-mono font-bold text-emerald-400">{etaMin != null ? `${etaMin} min` : "—"}</span>
+                            </span>
+                          </div>
+                        )
+                      })()}
+                      <p className="text-[9px] text-slate-500">
+                        Se calcula con la posición del bus de arriba y se guarda al procesar el análisis.
+                      </p>
                     </div>
                   )}
 
@@ -1192,6 +1282,12 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
+
+                          {analyzeEtaResult != null && (
+                            <div className="text-xs text-teal-200 bg-teal-950/30 p-2.5 rounded border border-teal-500/20 leading-relaxed">
+                              🕐 *ETA registrado:* este bus llegará a la estación destino en aproximadamente **{analyzeEtaResult} minutos** (velocidad {analyzeSpeed} km/h). El dato fue enviado al asistente SITME.
+                            </div>
+                          )}
 
                           <div className="text-xs text-slate-300 bg-slate-900/50 p-2.5 rounded border border-slate-800 mt-1 leading-relaxed">
                             💡 *Sinergia Metrolínea:* La base de datos ha sido actualizada. En la base de datos de FiftyOne se ha registrado este fotograma con la etiqueta del identificador `{analyzeResult.bus_id}` y el tiempo de inferencia fue de **{analyzeResult.inference_ms} ms**.
