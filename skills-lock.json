@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "fiftyone-dataset-import": {
+      "source": "voxel51/fiftyone-skills",
+      "sourceType": "github",
+      "skillPath": "skills/fiftyone-dataset-import/SKILL.md",
+      "computedHash": "3ebf06b14dd26a965d29faf010759bcf2620b3ee15d013c9f7abf3c336791e78"
+    },
+    "fiftyone-embeddings-visualization": {
+      "source": "voxel51/fiftyone-skills",
+      "sourceType": "github",
+      "skillPath": "skills/fiftyone-embeddings-visualization/SKILL.md",
+      "computedHash": "2a2cd5ad5b6a01fc27e85031bfe6399488162fa0fe39553b6d0aefe074a1d432"
+    },
+    "fiftyone-find-duplicates": {
+      "source": "voxel51/fiftyone-skills",
+      "sourceType": "github",
+      "skillPath": "skills/fiftyone-find-duplicates/SKILL.md",
+      "computedHash": "95a202e4a5f43bdd17382e58f85da46f6f3eae7cc3f1d7727054a4c70de48129"
+    },
+    "fiftyone-model-evaluation": {
+      "source": "voxel51/fiftyone-skills",
+      "sourceType": "github",
+      "skillPath": "skills/fiftyone-model-evaluation/SKILL.md",
+      "computedHash": "7cea4336f41c64a9c723f61d1d7a7edfb871de8bc106bde3950e39b79edcfcdf"
+    }
+  }
+}
