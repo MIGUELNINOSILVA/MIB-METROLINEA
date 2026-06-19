@@ -42,6 +42,12 @@ const routes = {
     tokens: [{"old":"/api/v1/stations/:id","type":0,"val":"api","end":""},{"old":"/api/v1/stations/:id","type":0,"val":"v1","end":""},{"old":"/api/v1/stations/:id","type":0,"val":"stations","end":""},{"old":"/api/v1/stations/:id","type":1,"val":"id","end":""}],
     types: placeholder as Registry['stations.update']['types'],
   },
+  'stations.analyze': {
+    methods: ["POST"],
+    pattern: '/api/v1/analyze',
+    tokens: [{"old":"/api/v1/analyze","type":0,"val":"api","end":""},{"old":"/api/v1/analyze","type":0,"val":"v1","end":""},{"old":"/api/v1/analyze","type":0,"val":"analyze","end":""}],
+    types: placeholder as Registry['stations.analyze']['types'],
+  },
   'routes.index': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/routes',

@@ -79,6 +79,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/stations_controller').default['update']>>>
     }
   }
+  'stations.analyze': {
+    methods: ["POST"]
+    pattern: '/api/v1/analyze'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/stations_controller').default['analyze']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/stations_controller').default['analyze']>>>
+    }
+  }
   'routes.index': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/routes'

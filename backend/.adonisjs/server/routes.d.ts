@@ -10,6 +10,7 @@ export type ScannedRoutes = {
     'profile.access_tokens.destroy': { paramsTuple?: []; params?: {} }
     'stations.index': { paramsTuple?: []; params?: {} }
     'stations.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'stations.analyze': { paramsTuple?: []; params?: {} }
     'routes.index': { paramsTuple?: []; params?: {} }
     'buses.index': { paramsTuple?: []; params?: {} }
     'buses.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -42,6 +43,7 @@ export type ScannedRoutes = {
     'auth.new_account.store': { paramsTuple?: []; params?: {} }
     'auth.access_tokens.store': { paramsTuple?: []; params?: {} }
     'profile.access_tokens.destroy': { paramsTuple?: []; params?: {} }
+    'stations.analyze': { paramsTuple?: []; params?: {} }
     'whatsapp.webhook': { paramsTuple?: []; params?: {} }
     'whatsapp.simulate': { paramsTuple?: []; params?: {} }
   }

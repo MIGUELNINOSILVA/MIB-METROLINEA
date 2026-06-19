@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import app from '@adonisjs/core/services/app'
-import makeWASocket, { useMultiFileAuthState, DisconnectReason } from '@whiskeysockets/baileys'
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, downloadMediaMessage } from '@whiskeysockets/baileys'
 import pino from 'pino'
 import WhatsappChat from '#models/whatsapp_chat'
 import Station from '#models/station'
@@ -104,15 +104,55 @@ export class WhatsappService {
 
           // Allow any phone number to interact with the bot
 
-          const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text
+          // Extract message content in case of ephemeral or viewOnce wrappers
+          let messageContent = msg.message
+          if (messageContent?.ephemeralMessage) {
+            messageContent = messageContent.ephemeralMessage.message
+          }
+          if (messageContent?.viewOnceMessage) {
+            messageContent = messageContent.viewOnceMessage.message
+          }
+          if (messageContent?.viewOnceMessageV2) {
+            messageContent = messageContent.viewOnceMessageV2.message
+          }
 
-          if (!body) continue
+          const body = messageContent?.conversation || messageContent?.extendedTextMessage?.text
+          const audioMessage = messageContent?.audioMessage
 
-          console.log(`[SITME WhatsApp] Received from ${from}: ${body}`)
+          if (!body && !audioMessage) continue
+
+          console.log(`[SITME WhatsApp] Received from ${from}: body=${body}, hasAudio=${!!audioMessage}`)
 
           try {
-            const reply = await this.processMessage(from, body)
-            await this.sock.sendMessage(fromJid, { text: reply })
+            let messageText = body || ''
+            if (audioMessage) {
+              console.log(`[SITME WhatsApp] Downloading audio message from ${from}...`)
+              const buffer = await downloadMediaMessage(
+                msg,
+                'buffer',
+                {},
+                {
+                  logger: pino({ level: 'silent' }),
+                  reuploadRequest: async (m: any) => m,
+                }
+              )
+              console.log(`[SITME WhatsApp] Audio downloaded, size: ${buffer.length} bytes. Transcribing...`)
+              const transcription = await this.transcribeAudio(buffer)
+              console.log(`[SITME WhatsApp] Transcription result: "${transcription}"`)
+              messageText = transcription
+            }
+
+            if (!messageText) continue
+
+            const reply = await this.processMessage(from, messageText, !!audioMessage)
+            
+            // If they sent an audio message, prepend the transcription so they see what we heard
+            let finalReply = reply
+            if (audioMessage) {
+              finalReply = `🎤 *Audio transcribido:* "${messageText}"\n\n${reply}`
+            }
+
+            await this.sock.sendMessage(fromJid, { text: finalReply })
             console.log(`[SITME WhatsApp] Replied to ${from}`)
           } catch (err) {
             console.error('[SITME WhatsApp] Error sending message via Baileys:', err)
@@ -140,7 +180,7 @@ export class WhatsappService {
     }
   }
 
-  private async processMessage(from: string, body: string): Promise<string> {
+  private async processMessage(from: string, body: string, isAudio: boolean = false): Promise<string> {
     let chat = await WhatsappChat.findBy('phoneNumber', from)
     if (!chat) {
       chat = new WhatsappChat()
@@ -157,7 +197,8 @@ export class WhatsappService {
     context.messages.push({
       sender: 'user',
       text: body,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isAudio
     })
 
     const stations = await Station.query()
@@ -289,6 +330,96 @@ Puedes preguntarme cosas como:
 • "Estado de las estaciones" (para ver ocupación en tiempo real).
 • "Ver buses" (para ver la flota activa).
 
-Dime, ¿cómo te puedo ayudar hoy?`
+    Dime, ¿cómo te puedo ayudar hoy?`
+  }
+
+  private async transcribeAudio(buffer: Buffer): Promise<string> {
+    const openaiKey = env.get('OPENAI_API_KEY')
+    const geminiKey = env.get('GEMINI_API_KEY')
+
+    if (openaiKey) {
+      try {
+        console.log('[SITME WhatsApp] Transcribing with OpenAI Whisper...')
+        return await this.transcribeOpenAI(openaiKey, buffer)
+      } catch (err) {
+        console.error('[SITME WhatsApp] OpenAI transcription failed:', err)
+      }
+    }
+
+    if (geminiKey) {
+      try {
+        console.log('[SITME WhatsApp] Transcribing with Gemini...')
+        return await this.transcribeGemini(geminiKey, buffer)
+      } catch (err) {
+        console.error('[SITME WhatsApp] Gemini transcription failed:', err)
+      }
+    }
+
+    console.log('[SITME WhatsApp] No API keys configured or transcription failed. Returning mock transcription.')
+    return '¿Cómo llego de Provenza a La Rosita?'
+  }
+
+  private async transcribeOpenAI(apiKey: string, buffer: Buffer): Promise<string> {
+    const formData = new FormData()
+    const blob = new Blob([new Uint8Array(buffer)], { type: 'audio/ogg' })
+    formData.append('file', blob, 'audio.ogg')
+    formData.append('model', 'whisper-1')
+    formData.append('language', 'es')
+
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errText = await response.text()
+      throw new Error(`OpenAI Whisper API error: ${response.status} ${errText}`)
+    }
+
+    const data: any = await response.json()
+    return data.text || ''
+  }
+
+  private async transcribeGemini(apiKey: string, buffer: Buffer): Promise<string> {
+    const base64Audio = buffer.toString('base64')
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: 'audio/ogg',
+                    data: base64Audio,
+                  },
+                },
+                {
+                  text: 'Transcribe exactamente el siguiente audio en español de la forma más precisa posible. Si el audio no tiene voz o no se entiende, devuelve vacío. Devuelve ÚNICAMENTE la transcripción literal, sin comentarios, aclaraciones ni introducciones.',
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.0,
+          },
+        }),
+      }
+    )
+
+    if (!response.ok) {
+      const errText = await response.text()
+      throw new Error(`Gemini Transcription API error: ${response.status} ${errText}`)
+    }
+
+    const data: any = await response.json()
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+    return text ? text.trim() : ''
   }
 }

@@ -21,6 +21,7 @@ export interface ApiDefinition {
   stations: {
     index: typeof routes['stations.index']
     update: typeof routes['stations.update']
+    analyze: typeof routes['stations.analyze']
   }
   routes: {
     index: typeof routes['routes.index']

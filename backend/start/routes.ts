@@ -37,6 +37,7 @@ router
     // SITME - Metrolínea Endpoints
     router.get('stations', [controllers.Stations, 'index'])
     router.put('stations/:id', [controllers.Stations, 'update'])
+    router.post('analyze', [controllers.Stations, 'analyze'])
     router.get('routes', [controllers.Routes, 'index'])
     router.get('buses', [controllers.Buses, 'index'])
     router.put('buses/:id', [controllers.Buses, 'update'])

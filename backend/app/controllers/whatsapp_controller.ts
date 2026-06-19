@@ -85,7 +85,7 @@ export default class WhatsappController {
   /**
    * Internal shared handler for incoming messages
    */
-  private async handleIncomingMessage(from: string, body: string) {
+  private async handleIncomingMessage(from: string, body: string, isAudio: boolean = false) {
 
     // 1. Get or create chat context
     let chat = await WhatsappChat.findBy('phoneNumber', from)
@@ -104,7 +104,8 @@ export default class WhatsappController {
     context.messages.push({
       sender: 'user',
       text: body,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isAudio
     })
 
     // 2. Fetch real-time data from database
@@ -146,7 +147,7 @@ export default class WhatsappController {
    * Webhook endpoint to receive incoming WhatsApp messages
    */
   async webhook({ request, response }: HttpContext) {
-    const { from, body } = request.only(['from', 'body'])
+    const { from, body, isAudio } = request.only(['from', 'body', 'isAudio'])
 
     if (!from || !body) {
       return response.status(400).json({ error: 'Missing from or body parameters' })
@@ -154,7 +155,7 @@ export default class WhatsappController {
 
     // Phone restriction removed as requested
 
-    const { reply } = await this.handleIncomingMessage(from, body)
+    const { reply } = await this.handleIncomingMessage(from, body, !!isAudio)
 
     return response.json({
       from,
@@ -166,14 +167,14 @@ export default class WhatsappController {
    * Simulated message endpoint (for testing/frontend demo)
    */
   async simulate({ request, response }: HttpContext) {
-    const { from, body } = request.only(['from', 'body'])
+    const { from, body, isAudio } = request.only(['from', 'body', 'isAudio'])
     if (!from || !body) {
       return response.status(400).json({ error: 'Missing from or body parameters' })
     }
 
     // Phone restriction removed as requested
 
-    const { reply, chat } = await this.handleIncomingMessage(from, body)
+    const { reply, chat } = await this.handleIncomingMessage(from, body, !!isAudio)
 
     return response.json({
       from,
