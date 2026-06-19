@@ -8,6 +8,8 @@ export default class extends BaseSchema {
       table.increments('id').notNullable()
       table.string('name').notNullable()
       table.string('location').nullable()
+      table.double('latitude').nullable()
+      table.double('longitude').nullable()
       table.string('occupancy_level').notNullable().defaultTo('LOW') // LOW, MEDIUM, HIGH
       table.integer('passenger_count').notNullable().defaultTo(0)
 

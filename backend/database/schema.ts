@@ -50,12 +50,16 @@ export class AuthAccessTokenSchema extends BaseModel {
 }
 
 export class BusSchema extends BaseModel {
-  static $columns = ['createdAt', 'id', 'occupancyLevel', 'passengerCount', 'plate', 'routeId', 'status', 'updatedAt'] as const
+  static $columns = ['createdAt', 'id', 'latitude', 'longitude', 'occupancyLevel', 'passengerCount', 'plate', 'routeId', 'status', 'updatedAt'] as const
   $columns = BusSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
   @column({ isPrimary: true })
   declare id: number
+  @column()
+  declare latitude: number | null
+  @column()
+  declare longitude: number | null
   @column()
   declare occupancyLevel: string
   @column()
@@ -105,14 +109,18 @@ export class RouteSchema extends BaseModel {
 }
 
 export class StationSchema extends BaseModel {
-  static $columns = ['createdAt', 'id', 'location', 'name', 'occupancyLevel', 'passengerCount', 'updatedAt'] as const
+  static $columns = ['createdAt', 'id', 'latitude', 'location', 'longitude', 'name', 'occupancyLevel', 'passengerCount', 'updatedAt'] as const
   $columns = StationSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
   @column({ isPrimary: true })
   declare id: number
   @column()
+  declare latitude: number | null
+  @column()
   declare location: string | null
+  @column()
+  declare longitude: number | null
   @column()
   declare name: string
   @column()

@@ -72,11 +72,20 @@ export default class StationsController {
       const result: any = await apiResponse.json()
       console.log('[SITME AI] Analysis complete. Result:', result)
 
+      const latitudeInput = request.input('latitude')
+      const longitudeInput = request.input('longitude')
+
       let updatedEntity: any = null
       if (targetType === 'station') {
         const station = await Station.findOrFail(targetId)
         station.passengerCount = result.passenger_count
         station.occupancyLevel = result.occupancy_level
+        if (latitudeInput !== undefined && latitudeInput !== null && latitudeInput !== '') {
+          station.latitude = parseFloat(latitudeInput)
+        }
+        if (longitudeInput !== undefined && longitudeInput !== null && longitudeInput !== '') {
+          station.longitude = parseFloat(longitudeInput)
+        }
         await station.save()
         updatedEntity = station
       } else if (targetType === 'bus') {
@@ -84,6 +93,12 @@ export default class StationsController {
         const bus = await Bus.findOrFail(targetId)
         bus.passengerCount = result.passenger_count
         bus.occupancyLevel = result.occupancy_level
+        if (latitudeInput !== undefined && latitudeInput !== null && latitudeInput !== '') {
+          bus.latitude = parseFloat(latitudeInput)
+        }
+        if (longitudeInput !== undefined && longitudeInput !== null && longitudeInput !== '') {
+          bus.longitude = parseFloat(longitudeInput)
+        }
         await bus.save()
         updatedEntity = bus
       }

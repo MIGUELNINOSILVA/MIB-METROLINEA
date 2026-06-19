@@ -85,19 +85,38 @@ export default class WhatsappController {
   /**
    * Internal shared handler for incoming messages
    */
-  private async handleIncomingMessage(from: string, body: string, isAudio: boolean = false) {
-
+  private async handleIncomingMessage(
+    from: string,
+    body: string,
+    isAudio: boolean = false,
+    userLatitude?: number,
+    userLongitude?: number
+  ) {
     // 1. Get or create chat context
     let chat = await WhatsappChat.findBy('phoneNumber', from)
     if (!chat) {
       chat = new WhatsappChat()
       chat.phoneNumber = from
-      chat.parsedContext = { step: 'welcome', messages: [] }
+      chat.parsedContext = {
+        step: 'welcome',
+        userLatitude: userLatitude !== undefined ? userLatitude : 7.0945,
+        userLongitude: userLongitude !== undefined ? userLongitude : -73.1118,
+        messages: [],
+      }
+    } else {
+      const context = chat.parsedContext
+      if (userLatitude !== undefined) context.userLatitude = userLatitude
+      if (userLongitude !== undefined) context.userLongitude = userLongitude
+      chat.parsedContext = context
     }
 
     const context = chat.parsedContext
     if (!Array.isArray(context.messages)) {
       context.messages = []
+    }
+    if (!context.userLatitude) {
+      context.userLatitude = 7.0945
+      context.userLongitude = -73.1118
     }
 
     // Append incoming user message
@@ -121,7 +140,7 @@ export default class WhatsappController {
     if (geminiKey) {
       reply = await this.generateGeminiResponse(geminiKey, body, context, stations, routes, buses, arrivals)
     } else {
-      reply = this.generateLocalResponse(body, context, stations)
+      reply = this.generateLocalResponse(body, context, stations, buses)
     }
 
     // Append bot response to history
@@ -147,7 +166,7 @@ export default class WhatsappController {
    * Webhook endpoint to receive incoming WhatsApp messages
    */
   async webhook({ request, response }: HttpContext) {
-    const { from, body, isAudio } = request.only(['from', 'body', 'isAudio'])
+    const { from, body, isAudio, latitude, longitude } = request.only(['from', 'body', 'isAudio', 'latitude', 'longitude'])
 
     if (!from || !body) {
       return response.status(400).json({ error: 'Missing from or body parameters' })
@@ -155,7 +174,13 @@ export default class WhatsappController {
 
     // Phone restriction removed as requested
 
-    const { reply } = await this.handleIncomingMessage(from, body, !!isAudio)
+    const { reply } = await this.handleIncomingMessage(
+      from,
+      body,
+      !!isAudio,
+      latitude !== undefined ? parseFloat(latitude) : undefined,
+      longitude !== undefined ? parseFloat(longitude) : undefined
+    )
 
     return response.json({
       from,
@@ -167,14 +192,20 @@ export default class WhatsappController {
    * Simulated message endpoint (for testing/frontend demo)
    */
   async simulate({ request, response }: HttpContext) {
-    const { from, body, isAudio } = request.only(['from', 'body', 'isAudio'])
+    const { from, body, isAudio, latitude, longitude } = request.only(['from', 'body', 'isAudio', 'latitude', 'longitude'])
     if (!from || !body) {
       return response.status(400).json({ error: 'Missing from or body parameters' })
     }
 
     // Phone restriction removed as requested
 
-    const { reply, chat } = await this.handleIncomingMessage(from, body, !!isAudio)
+    const { reply, chat } = await this.handleIncomingMessage(
+      from,
+      body,
+      !!isAudio,
+      latitude !== undefined ? parseFloat(latitude) : undefined,
+      longitude !== undefined ? parseFloat(longitude) : undefined
+    )
 
     return response.json({
       from,
@@ -195,12 +226,19 @@ export default class WhatsappController {
     buses: Bus[],
     arrivals: Arrival[]
   ): Promise<string> {
+    const userLat = context.userLatitude || 7.0945
+    const userLon = context.userLongitude || -73.1118
+
     const systemPrompt = `Eres SITME (Sistema Sinérgico SITME), el asistente virtual inteligente de Metrolínea en Bucaramanga.
 Tu objetivo es guiar a los pasajeros de manera eficiente e informada, ayudándoles a evitar el hacinamiento en las estaciones y autobuses.
 
-DATOS EN TIEMPO REAL DEL SISTEMA METROLÍNEA:
+COORDENADAS DEL USUARIO ACTUAL (TELEMETRÍA):
+- Latitud: ${userLat}
+- Longitud: ${userLon}
+
+DATOS EN TIEMPO REAL DEL SISTEMA METROLÍNEA (TELEMETRÍA GPS):
 - Estaciones:
-${stations.map((s) => `  * ${s.name}: Ocupación ${s.occupancyLevel} (${s.passengerCount} personas), Ubicación: ${s.location}`).join('\n')}
+${stations.map((s) => `  * ${s.name}: Ocupación ${s.occupancyLevel} (${s.passengerCount} personas), Coordenadas: Lat ${s.latitude || 'Sin especificar'}, Lon ${s.longitude || 'Sin especificar'}`).join('\n')}
 
 - Rutas y sus paradas:
 ${routes
@@ -210,8 +248,8 @@ ${routes
   )
   .join('\n')}
 
-- Estado de los Buses:
-${buses.map((b) => `  * Bus ${b.plate} (Ruta ${b.route ? b.route.name : 'Ninguna'}): Ocupación ${b.occupancyLevel}, Estado: ${b.status}`).join('\n')}
+- Estado y Ubicación de los Buses:
+${buses.map((b) => `  * Bus ${b.plate} (Ruta ${b.route ? b.route.name : 'Ninguna'}): Ocupación ${b.occupancyLevel}, Estado: ${b.status}, Coordenadas: Lat ${b.latitude || 'Sin especificar'}, Lon ${b.longitude || 'Sin especificar'}`).join('\n')}
 
 - Próximos Arribos a Estaciones (ETA):
 ${arrivals.map((a) => `  * Bus ${a.bus.plate} llegará a ${a.station.name} en ${a.etaMinutes} minutos. (Ocupación del bus: ${a.bus.occupancyLevel})`).join('\n')}
@@ -219,8 +257,11 @@ ${arrivals.map((a) => `  * Bus ${a.bus.plate} llegará a ${a.station.name} en ${
 REGLAS DE RESPUESTA:
 1. Responde en español de forma amable, clara y concisa (idealmente en 2-4 párrafos máximo, usando emojis).
 2. Si el usuario te pregunta cómo llegar desde una estación de origen a un destino, sugiere qué rutas le sirven basándote en la lista de paradas.
-3. Informa la aglomeración actual de la estación de origen y de los próximos buses de la ruta.
-4. Sinergia contra Aglomeración (Crucial): Si un bus está a punto de llegar (ej. 2 min) pero está LLENO (occupancyLevel HIGH), y viene otro bus de la misma ruta poco después (ej. 10-15 min) que está VACÍO o MEDIO (occupancyLevel LOW o MEDIUM), adviértele explícitamente y recomiéndale esperar el segundo bus para viajar más cómodo.
+3. Si el usuario consulta la ubicación o distancia de un bus o transporte, calcula la distancia desde la ubicación del usuario (${userLat}, ${userLon}) usando la fórmula de Haversine:
+   d = 2 * R * asin(sqrt(sin^2(dLat/2) + cos(lat1)*cos(lat2)*sin^2(dLon/2))) con R = 6371 km.
+   Estima el tiempo de arribo (ETA) como: ETA = distancia * 2 minutos.
+   Reporta siempre explícitamente las coordenadas del bus, la distancia en km (con 1 decimal) y el tiempo aproximado (ETA) de llegada en minutos.
+4. Sinergia contra Aglomeración (Crucial): Si un bus está a punto de llegar (o está muy cerca por distancia) pero está LLENO (occupancyLevel HIGH), y viene otro bus de la misma ruta poco después que está VACÍO o MEDIO (occupancyLevel LOW o MEDIUM), adviértele explícitamente y recomiéndale esperar el segundo bus para viajar más cómodo.
 5. Pregunta al usuario si desea activar una alerta cuando el bus menos congestionado esté a una estación de distancia.
 6. Mantén el tono conversacional. Guarda estados simples en el contexto del chat si es necesario.
 7. Contexto de la conversación actual: ${JSON.stringify(context)}.
@@ -255,14 +296,14 @@ REGLAS DE RESPUESTA:
       if (!response.ok) {
         const errorText = await response.text()
         console.error('Gemini API Error:', errorText)
-        return this.generateLocalResponse(message, context, stations)
+        return this.generateLocalResponse(message, context, stations, buses)
       }
 
       const data = await response.json()
       return (data as any).candidates[0].content.parts[0].text
     } catch (error) {
       console.error('Failed to contact Gemini API:', error)
-      return this.generateLocalResponse(message, context, stations)
+      return this.generateLocalResponse(message, context, stations, buses)
     }
   }
 
@@ -272,11 +313,80 @@ REGLAS DE RESPUESTA:
   private generateLocalResponse(
     message: string,
     context: any,
-    stations: Station[]
+    stations: Station[],
+    buses: Bus[]
   ): string {
     const text = message.toLowerCase()
+    const userLat = context.userLatitude || 7.0945
+    const userLon = context.userLongitude || -73.1118
 
-    // 1. Greet
+    // Haversine Distance helper
+    const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const R = 6371 // km
+      const dLat = ((lat2 - lat1) * Math.PI) / 180
+      const dLon = ((lon2 - lon1) * Math.PI) / 180
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) *
+          Math.cos((lat2 * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2)
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      return Math.round(R * c * 10) / 10
+    }
+
+    // 1. Telemetry Query
+    if (
+      text.includes('bus') ||
+      text.includes('buses') ||
+      text.includes('dónde viene') ||
+      text.includes('donde viene') ||
+      text.includes('distancia') ||
+      text.includes('telemetria') ||
+      text.includes('telemetría') ||
+      text.includes('ubicacion') ||
+      text.includes('ubicación')
+    ) {
+      let responseText = `🚌 *Telemetría y Estado de la Flota en Tiempo Real:* \n\n`
+      responseText += `📍 *Tu ubicación:* Lat ${userLat}, Lon ${userLon}\n\n`
+
+      buses.forEach((b) => {
+        const busLat = b.latitude || 7.0945
+        const busLon = b.longitude || -73.1118
+        const dist = getDistance(userLat, userLon, busLat, busLon)
+        const eta = Math.round(dist * 2)
+        const emoji = b.occupancyLevel === 'HIGH' ? '🔴' : b.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
+
+        responseText += `🚌 *Bus ${b.plate}* (Ruta: ${b.route ? b.route.name : 'Ninguna'}):\n`
+        responseText += `  • Aforo/Ocupación: ${emoji} *${b.occupancyLevel}* (${b.passengerCount} pasajeros)\n`
+        responseText += `  • Ubicación: Lat ${busLat}, Lon ${busLon}\n`
+        responseText += `  • Distancia: *${dist} km*\n`
+        responseText += `  • Tiempo Estimado (ETA): *${eta} minutos*\n`
+        responseText += `  • Estado: ${b.status === 'IN_TRANSIT' ? '🟢 En tránsito' : '🔴 Detenido'}\n\n`
+      })
+
+      // Synergy logic in fallback
+      const activePtbBuses = buses.filter(b => b.route && b.route.name === 'PTB')
+      if (activePtbBuses.length >= 2) {
+        const sortedBuses = activePtbBuses.map(b => {
+          const busLat = b.latitude || 7.0945
+          const busLon = b.longitude || -73.1118
+          const dist = getDistance(userLat, userLon, busLat, busLon)
+          return { ...b, dist, eta: Math.round(dist * 2) }
+        }).sort((x, y) => x.dist - y.dist)
+
+        const first = sortedBuses[0]
+        const second = sortedBuses[1]
+        if (first.occupancyLevel === 'HIGH' && (second.occupancyLevel === 'LOW' || second.occupancyLevel === 'MEDIUM')) {
+          responseText += `\n⚠️ *Recomendación SITME (Sinergia):* El bus más cercano *${first.plate}* (${first.eta} min) viene *LLENO*. Te recomendamos esperar al bus *${second.plate}* que viene a ${second.eta} min con ocupación *${second.occupancyLevel}*.\n`
+        }
+      }
+
+      responseText += `\n¿Te gustaría que te envíe un recordatorio cuando el bus menos aglomerado esté cerca?`
+      return responseText
+    }
+
+    // 2. Greet
     if (text.includes('hola') || text.includes('buenas') || text.includes('buenos')) {
       context.step = 'greeted'
       return `👋 ¡Hola! Soy el asistente virtual de Metrolínea (SITME). 🤖
@@ -285,23 +395,52 @@ Te ayudo a consultar rutas, ver la ocupación en tiempo real y evitar buses llen
 ¿En qué estación te encuentras actualmente y hacia dónde te diriges? (Ej: "Estoy en Provenza Occidental y voy a La Rosita")`
     }
 
-    // 2. Identify locations (Provenza and La Rosita)
+    // 3. Identify locations (Provenza and La Rosita)
     const isProvenza = text.includes('provenza')
     const isRosita = text.includes('rosita')
 
     if (isProvenza && isRosita) {
       context.step = 'route_info'
 
-      // Let's formulate the exact synergy reply from README
+      // Calculate dynamic distances to buses
+      const activePtbBuses = buses.filter(b => b.route && b.route.name === 'PTB')
+      let firstBusText = `🔴 *Bus BUS-101* (llegando en *2 minutos*): Nivel de aglomeración *ALTO* (bastante lleno, sin sillas).`
+      let secondBusText = `🟢 *Bus BUS-102* (llegando en *12 minutos*): Nivel de aglomeración *BAJO* (sillas disponibles).`
+      let recTime = '10 minutos más'
+
+      if (activePtbBuses.length > 0) {
+        const sorted = activePtbBuses.map(b => {
+          const busLat = b.latitude || 7.0945
+          const busLon = b.longitude || -73.1118
+          const dist = getDistance(userLat, userLon, busLat, busLon)
+          return { ...b, dist, eta: Math.round(dist * 2) }
+        }).sort((x, y) => x.dist - y.dist)
+
+        const b1 = sorted.find(x => x.plate === 'BUS-101')
+        const b2 = sorted.find(x => x.plate === 'BUS-102')
+
+        if (b1) {
+          const b1Emoji = b1.occupancyLevel === 'HIGH' ? '🔴' : b1.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
+          firstBusText = `${b1Emoji} *Bus ${b1.plate}* (a *${b1.dist} km* / *${b1.eta} min*): Ocupación *${b1.occupancyLevel}* (${b1.passengerCount} pasajeros).`
+        }
+        if (b2) {
+          const b2Emoji = b2.occupancyLevel === 'HIGH' ? '🔴' : b2.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
+          secondBusText = `${b2Emoji} *Bus ${b2.plate}* (a *${b2.dist} km* / *${b2.eta} min*): Ocupación *${b2.occupancyLevel}* (${b2.passengerCount} pasajeros).`
+          if (b1 && b2) {
+            recTime = `${b2.eta - b1.eta} minutos más`
+          }
+        }
+      }
+
       return `📍 *Desde Estación Provenza Occidental hacia La Rosita:*
 
 La mejor opción es tomar la ruta troncal *PTB* o *PTN*. Debes bajarte en la *Estación La Rosita* (Diagonal 15).
 
-Actualmente, estos son los próximos buses de la ruta *PTB* acercándose a Provenza Occidental:
-🔴 *Bus BUS-101* (llegando en *2 minutos*): Nivel de aglomeración *ALTO* (bastante lleno, sin sillas).
-🟢 *Bus BUS-102* (llegando en *12 minutos*): Nivel de aglomeración *BAJO* (sillas disponibles).
+Actualmente, estos son los próximos buses de la ruta *PTB* acercándose a tu ubicación:
+${firstBusText}
+${secondBusText}
 
-⚠️ *Recomendación SITME:* Te sugerimos esperar 10 minutos más y tomar el bus *BUS-102* para viajar cómodo y ayudar a descongestionar el sistema.
+⚠️ *Recomendación SITME:* Te sugerimos esperar ${recTime} y tomar el bus *BUS-102* para viajar cómodo y ayudar a descongestionar el sistema.
 
 ¿Te gustaría que te envíe un recordatorio cuando el bus menos aglomerado esté a una estación de distancia? (Responde: "Sí, activar alerta")`
     }
@@ -313,23 +452,23 @@ Actualmente, estos son los próximos buses de la ruta *PTB* acercándose a Prove
       }
     }
 
-    // 3. General query about stations
+    // 4. General query about stations
     if (text.includes('ocupacion') || text.includes('estado') || text.includes('estacion') || text.includes('estación')) {
       let responseText = `📊 *Ocupación de Estaciones en Tiempo Real:* \n\n`
       stations.forEach((s) => {
         const emoji = s.occupancyLevel === 'HIGH' ? '🔴' : s.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
-        responseText += `${emoji} *${s.name}*: ${s.occupancyLevel} (${s.passengerCount} pasajeros)\n`
+        responseText += `${emoji} *${s.name}*: ${s.occupancyLevel} (${s.passengerCount} pasajeros) [Ubicación: Lat ${s.latitude || 'N/D'}, Lon ${s.longitude || 'N/D'}]\n`
       })
-      responseText += `\n¿Quieres saber qué bus viene a alguna estación? Escribe el nombre de la estación.`
+      responseText += `\n¿Quieres saber qué bus viene a alguna estación o a qué distancia está? Escribe "ver buses".`
       return responseText
     }
 
-    // 4. Default fallback
+    // 5. Default fallback
     return `🤖 *SITME Metrolínea:* Entiendo que estás consultando sobre el sistema.
 Puedes preguntarme cosas como:
 • "Estoy en Provenza y voy a La Rosita" (para buscar rutas y evitar aglomeraciones).
 • "Estado de las estaciones" (para ver ocupación en tiempo real).
-• "Ver buses" (para ver la flota activa).
+• "Ubicación de los buses" (para ver la telemetría y distancias).
 
 Dime, ¿cómo te puedo ayudar hoy?`
   }

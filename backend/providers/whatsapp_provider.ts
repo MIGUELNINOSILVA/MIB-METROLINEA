@@ -5,8 +5,8 @@ export default class WhatsappProvider {
   constructor(protected app: ApplicationService) {}
 
   async ready() {
-    // Only initialize in serve mode, skip during db seed / migrations
-    if (this.app.inDev || this.app.inProduction) {
+    // Only initialize in web environment (serve mode), skip during cli commands like seed/migrations
+    if (this.app.getEnvironment() === 'web') {
       const whatsapp = WhatsappService.getInstance()
       // Initialize in the background (non-blocking)
       whatsapp.initialize()
