@@ -55,4 +55,124 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/access_tokens_controller').default['destroy']>>>
     }
   }
+  'stations.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/stations'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/stations_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/stations_controller').default['index']>>>
+    }
+  }
+  'stations.update': {
+    methods: ["PUT"]
+    pattern: '/api/v1/stations/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/stations_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/stations_controller').default['update']>>>
+    }
+  }
+  'routes.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/routes'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/routes_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/routes_controller').default['index']>>>
+    }
+  }
+  'buses.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/buses'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/buses_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/buses_controller').default['index']>>>
+    }
+  }
+  'buses.update': {
+    methods: ["PUT"]
+    pattern: '/api/v1/buses/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/buses_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/buses_controller').default['update']>>>
+    }
+  }
+  'whatsapp.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/whatsapp/chats'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['index']>>>
+    }
+  }
+  'whatsapp.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/whatsapp/chats/:phone'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { phone: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['show']>>>
+    }
+  }
+  'whatsapp.status': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/whatsapp/status'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['status']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['status']>>>
+    }
+  }
+  'whatsapp.webhook': {
+    methods: ["POST"]
+    pattern: '/api/v1/whatsapp/webhook'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['webhook']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['webhook']>>>
+    }
+  }
+  'whatsapp.simulate': {
+    methods: ["POST"]
+    pattern: '/api/v1/whatsapp/simulate'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['simulate']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['simulate']>>>
+    }
+  }
 }

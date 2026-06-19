@@ -65,9 +65,13 @@
     "@japa/api-client": "^3.2.1",
     "@tuyau/core": "^1.2.2",
     "@vinejs/vine": "^4.4.0",
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
     "better-sqlite3": "^12.10.0",
     "luxon": "^3.7.2",
-    "reflect-metadata": "^0.2.2"
+    "pg": "^8.22.0",
+    "qrcode-terminal": "^0.12.0",
+    "reflect-metadata": "^0.2.2",
+    "whatsapp-web.js": "^1.34.7"
   },
   "hotHook": {
     "boundaries": [

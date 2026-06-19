@@ -5,6 +5,10 @@
 
 export const controllers = {
   AccessTokens: () => import('#controllers/access_tokens_controller'),
+  Buses: () => import('#controllers/buses_controller'),
   NewAccount: () => import('#controllers/new_account_controller'),
   Profile: () => import('#controllers/profile_controller'),
+  Routes: () => import('#controllers/routes_controller'),
+  Stations: () => import('#controllers/stations_controller'),
+  Whatsapp: () => import('#controllers/whatsapp_controller'),
 }
