@@ -607,6 +607,22 @@ export default function Dashboard() {
     }
   }
 
+  // Translation helper function
+  const translateOccupancy = (level: string) => {
+    switch (level?.toUpperCase()) {
+      case "HIGH":
+        return "ALTO"
+      case "MEDIUM":
+        return "MEDIO"
+      case "LOW":
+        return "BAJO"
+      case "EMPTY":
+        return "VACÍO"
+      default:
+        return level || "VACÍO"
+    }
+  }
+
   // Color helper functions
   const getOccupancyBadge = (level: "LOW" | "MEDIUM" | "HIGH") => {
     switch (level) {
@@ -771,7 +787,7 @@ export default function Dashboard() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getOccupancyBadge(s.occupancyLevel)}`}>
-                            {s.occupancyLevel}
+                            {translateOccupancy(s.occupancyLevel)}
                           </span>
                           <span className="text-xs text-slate-300 font-mono font-bold bg-slate-900 px-2 py-1 rounded border border-slate-800">
                             👥 {s.passengerCount}
@@ -817,7 +833,7 @@ export default function Dashboard() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getOccupancyBadge(b.occupancyLevel)}`}>
-                            {b.occupancyLevel}
+                            {translateOccupancy(b.occupancyLevel)}
                           </span>
                           <span className="text-xs text-slate-300 font-mono font-bold bg-slate-900 px-2 py-1 rounded border border-slate-800">
                             👥 {b.passengerCount}
@@ -973,7 +989,7 @@ export default function Dashboard() {
                                 </td>
                                 <td className="p-3.5">
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${getOccupancyBadge(item.occupancyLevel)}`}>
-                                    {item.occupancyLevel}
+                                    {translateOccupancy(item.occupancyLevel)}
                                   </span>
                                 </td>
                                 <td className="p-3.5 text-right font-bold text-slate-200">{item.passengerCount}</td>
@@ -1045,7 +1061,7 @@ export default function Dashboard() {
                                 {rs.station.name.replace("Estación ", "")}
                               </span>
                               <span className={`text-[10px] px-1.5 py-0.2 rounded-full mt-1 ${getOccupancyBadge(rs.station.occupancyLevel)}`}>
-                                {rs.station.occupancyLevel}
+                                {translateOccupancy(rs.station.occupancyLevel)}
                               </span>
                             </div>
 
@@ -1331,7 +1347,7 @@ export default function Dashboard() {
                               <div className="text-[10px] text-slate-400 font-medium">Nivel de Aforo</div>
                               <div className="mt-1">
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getOccupancyBadge(analyzeResult.occupancy_level)}`}>
-                                  {analyzeResult.occupancy_level}
+                                  {translateOccupancy(analyzeResult.occupancy_level)}
                                 </span>
                               </div>
                             </div>
@@ -1645,7 +1661,7 @@ export default function Dashboard() {
                         : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
                         }`}
                     >
-                      {level}
+                      {translateOccupancy(level)}
                     </button>
                   ))}
                 </div>
@@ -1719,7 +1735,7 @@ export default function Dashboard() {
                         : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
                         }`}
                     >
-                      {level}
+                      {translateOccupancy(level)}
                     </button>
                   ))}
                 </div>

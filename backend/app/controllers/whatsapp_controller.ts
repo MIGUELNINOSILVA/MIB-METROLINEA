@@ -140,7 +140,11 @@ export default class WhatsappController {
     if (geminiKey) {
       reply = await this.generateGeminiResponse(geminiKey, body, context, stations, routes, buses, arrivals)
     } else {
-      reply = this.generateLocalResponse(body, context, stations, buses)
+      reply = this.generateLocalResponse(body, context, stations, buses, routes)
+    }
+
+    if (isAudio) {
+      reply = `🎤 *Audio transcribido:* "${body}"\n\n${reply}`
     }
 
     // Append bot response to history
@@ -296,14 +300,14 @@ REGLAS DE RESPUESTA:
       if (!response.ok) {
         const errorText = await response.text()
         console.error('Gemini API Error:', errorText)
-        return this.generateLocalResponse(message, context, stations, buses)
+        return this.generateLocalResponse(message, context, stations, buses, routes)
       }
 
       const data = await response.json()
       return (data as any).candidates[0].content.parts[0].text
     } catch (error) {
       console.error('Failed to contact Gemini API:', error)
-      return this.generateLocalResponse(message, context, stations, buses)
+      return this.generateLocalResponse(message, context, stations, buses, routes)
     }
   }
 
@@ -314,7 +318,8 @@ REGLAS DE RESPUESTA:
     message: string,
     context: any,
     stations: Station[],
-    buses: Bus[]
+    buses: Bus[],
+    routes: Route[]
   ): string {
     const text = message.toLowerCase()
     const userLat = context.userLatitude || 7.0945
@@ -335,7 +340,168 @@ REGLAS DE RESPUESTA:
       return Math.round(R * c * 10) / 10
     }
 
-    // 1. Telemetry Query
+    // Occupancy translation helper (EN → ES) for user-facing messages
+    const ocu = (level: string | null | undefined): string => {
+      switch ((level ?? '').toUpperCase()) {
+        case 'HIGH':   return 'ALTO'
+        case 'MEDIUM': return 'MEDIO'
+        case 'LOW':    return 'BAJO'
+        case 'EMPTY':  return 'VACÍO'
+        case 'FULL':   return 'LLENO'
+        default:       return level || 'VACÍO'
+      }
+    }
+
+    // 0. List Stations Query
+    if (
+      text.includes('qué estaciones existen') ||
+      text.includes('que estaciones existen') ||
+      text.includes('cuales estaciones hay') ||
+      text.includes('cuáles estaciones hay') ||
+      text.includes('cuales estaciones existen') ||
+      text.includes('cuáles estaciones existen') ||
+      text.includes('lista de estaciones') ||
+      text.includes('ver estaciones') ||
+      (text.includes('estaciones') && (text.includes('existen') || text.includes('hay') || text.includes('lista') || text.includes('ver') || text.includes('cuáles') || text.includes('cuales') || text.includes('qué') || text.includes('que')))
+    ) {
+      let responseText = `🏢 *Estaciones del Sistema Metrolínea (Bucaramanga):* \n\n`
+      stations.forEach((s) => {
+        const emoji = s.occupancyLevel === 'HIGH' ? '🔴' : s.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
+        responseText += `🏢 *${s.name}*\n`
+        responseText += `  • Ubicación: ${s.location || 'Sin dirección'}\n`
+        responseText += `  • Coordenadas: Lat ${s.latitude || 'N/D'}, Lon ${s.longitude || 'N/D'}\n`
+        responseText += `  • Estado de Aforo: ${emoji} *${ocu(s.occupancyLevel)}* (${s.passengerCount} personas)\n\n`
+      })
+      responseText += `📍 Puedes consultar rutas diciendo por ejemplo: "Cómo voy de Provenza al Centro" o "Ubicación de los buses".`
+      return responseText
+    }
+
+    // 1. Station-to-Station Routing Engine (X to Y)
+    const stationKeywords = [
+      { key: 'provenza occidental', name: 'Provenza Occidental' },
+      { key: 'provenza oriental', name: 'Provenza Oriental' },
+      { key: 'provenza', name: 'Provenza Occidental' },
+      { key: 'diamante', name: 'Diamante' },
+      { key: 'la rosita', name: 'La Rosita' },
+      { key: 'rosita', name: 'La Rosita' },
+      { key: 'centro', name: 'La Rosita' },
+      { key: 'chorreras', name: 'Chorreras' },
+      { key: 'quebradaseca', name: 'Quebradaseca' },
+      { key: 'uis', name: 'UIS' },
+      { key: 'universidad', name: 'UIS' },
+    ]
+
+    // Find all keyword matches with their index in the message
+    const matches = stationKeywords
+      .map((k) => ({ ...k, index: text.indexOf(k.key) }))
+      .filter((m) => m.index !== -1)
+      .sort((a, b) => a.index - b.index)
+
+    // Filter duplicates (e.g. 'la rosita' and 'rosita' matching the same index)
+    const uniqueMatches: typeof matches = []
+    matches.forEach((m) => {
+      if (!uniqueMatches.some((um) => Math.abs(um.index - m.index) < 5 || um.name === m.name)) {
+        uniqueMatches.push(m)
+      }
+    })
+
+    if (uniqueMatches.length >= 2) {
+      const originName = uniqueMatches[0].name
+      const destName = uniqueMatches[1].name
+      const originStation = stations.find((s) => s.name.includes(originName))
+      const destStation = stations.find((s) => s.name.includes(destName))
+
+      if (originStation && destStation) {
+        context.step = 'route_info'
+
+        // Find a route that contains both origin and destination, in order
+        let servingRoute: Route | undefined
+        for (const r of routes) {
+          const oStop = r.routeStations.find((rs) => rs.stationId === originStation.id)
+          const dStop = r.routeStations.find((rs) => rs.stationId === destStation.id)
+          if (oStop && dStop && oStop.sequenceOrder < dStop.sequenceOrder) {
+            servingRoute = r
+            break
+          }
+        }
+
+        if (servingRoute) {
+          // Distance and Travel Time estimations between stations
+          const distStations = getDistance(
+            originStation.latitude || 7.0945,
+            originStation.longitude || -73.1118,
+            destStation.latitude || 7.0945,
+            destStation.longitude || -73.1118
+          )
+          const travelTime = Math.round(distStations * 1.5) || 5
+
+          // Find active buses on this route
+          const routeBuses = buses.filter((b) => b.routeId === servingRoute!.id)
+          let busesText = ''
+
+          if (routeBuses.length > 0) {
+            const sortedBuses = routeBuses
+              .map((b) => {
+                const busLat = b.latitude || 7.0945
+                const busLon = b.longitude || -73.1118
+                const dist = getDistance(
+                  originStation.latitude || 7.0945,
+                  originStation.longitude || -73.1118,
+                  busLat,
+                  busLon
+                )
+                return {
+                  plate: b.plate,
+                  occupancyLevel: b.occupancyLevel,
+                  passengerCount: b.passengerCount,
+                  dist,
+                  eta: Math.round(dist * 2)
+                }
+              })
+              .sort((x, y) => x.dist - y.dist)
+
+            sortedBuses.forEach((b, idx) => {
+              const emoji = b.occupancyLevel === 'HIGH' ? '🔴' : b.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
+              busesText += `${idx === 0 ? '👉' : '•'} ${emoji} *Bus ${b.plate}* (a *${b.dist} km* / *${b.eta} min*): Ocupación *${ocu(b.occupancyLevel)}* (${b.passengerCount} pasajeros)\n`
+            })
+
+            // Synergy comparison
+            if (sortedBuses.length >= 2) {
+              const first = sortedBuses[0]
+              const second = sortedBuses[1]
+              if (
+                first.occupancyLevel === 'HIGH' &&
+                (second.occupancyLevel === 'LOW' || second.occupancyLevel === 'MEDIUM')
+              ) {
+                busesText += `\n⚠️ *Recomendación SITME (Sinergia):* El bus más cercano *${first.plate}* viene *LLENO*. Te recomendamos esperar al bus *${second.plate}* que llegará en *${second.eta} minutos* con ocupación *${ocu(second.occupancyLevel)}*.\n`
+              }
+            }
+          } else {
+            busesText = `No hay buses en tránsito en este momento para la ruta *${servingRoute.name}*.\n`
+          }
+
+          return `📍 *Ruta sugerida desde ${originStation.name} hasta ${destStation.name}:*
+
+La mejor opción es tomar la ruta troncal *${servingRoute.name}*. 
+• Estación de origen: *${originStation.name}* (Aforo actual: *${ocu(originStation.occupancyLevel)}* / ${originStation.passengerCount} pers.)
+• Estación de destino: *${destStation.name}* (Aforo actual: *${ocu(destStation.occupancyLevel)}* / ${destStation.passengerCount} pers.)
+
+🚌 *Próximos arribos a tu estación:*
+${busesText}
+⏱️ *Tiempo de viaje:*
+El trayecto entre las estaciones es de aproximadamente *${distStations} km* y tomará unos *${travelTime} minutos* de viaje.
+
+¿Te gustaría que te envíe un recordatorio cuando el bus recomendado esté a una estación de distancia? (Responde: "Sí, activar alerta")`
+        } else {
+          return `📍 *De ${originStation.name} a ${destStation.name}:*
+No encontré una ruta directa activa entre estas estaciones en este momento. Te recomendamos tomar la ruta *PTB* hasta *Estación La Rosita* y hacer transbordo a la ruta *T3* hacia tu destino.
+
+¿Te puedo colaborar con alguna otra consulta de rutas o estado de estaciones?`
+        }
+      }
+    }
+
+    // 2. Telemetry Query
     if (
       text.includes('bus') ||
       text.includes('buses') ||
@@ -358,7 +524,7 @@ REGLAS DE RESPUESTA:
         const emoji = b.occupancyLevel === 'HIGH' ? '🔴' : b.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
 
         responseText += `🚌 *Bus ${b.plate}* (Ruta: ${b.route ? b.route.name : 'Ninguna'}):\n`
-        responseText += `  • Aforo/Ocupación: ${emoji} *${b.occupancyLevel}* (${b.passengerCount} pasajeros)\n`
+        responseText += `  • Aforo/Ocupación: ${emoji} *${ocu(b.occupancyLevel)}* (${b.passengerCount} pasajeros)\n`
         responseText += `  • Ubicación: Lat ${busLat}, Lon ${busLon}\n`
         responseText += `  • Distancia: *${dist} km*\n`
         responseText += `  • Tiempo Estimado (ETA): *${eta} minutos*\n`
@@ -366,19 +532,24 @@ REGLAS DE RESPUESTA:
       })
 
       // Synergy logic in fallback
-      const activePtbBuses = buses.filter(b => b.route && b.route.name === 'PTB')
+      const activePtbBuses = buses.filter((b) => b.route && b.route.name === 'PTB')
       if (activePtbBuses.length >= 2) {
-        const sortedBuses = activePtbBuses.map(b => {
-          const busLat = b.latitude || 7.0945
-          const busLon = b.longitude || -73.1118
-          const dist = getDistance(userLat, userLon, busLat, busLon)
-          return { ...b, dist, eta: Math.round(dist * 2) }
-        }).sort((x, y) => x.dist - y.dist)
+        const sortedBuses = activePtbBuses
+          .map((b) => {
+            const busLat = b.latitude || 7.0945
+            const busLon = b.longitude || -73.1118
+            const dist = getDistance(userLat, userLon, busLat, busLon)
+            return { ...b, dist, eta: Math.round(dist * 2) }
+          })
+          .sort((x, y) => x.dist - y.dist)
 
         const first = sortedBuses[0]
         const second = sortedBuses[1]
-        if (first.occupancyLevel === 'HIGH' && (second.occupancyLevel === 'LOW' || second.occupancyLevel === 'MEDIUM')) {
-          responseText += `\n⚠️ *Recomendación SITME (Sinergia):* El bus más cercano *${first.plate}* (${first.eta} min) viene *LLENO*. Te recomendamos esperar al bus *${second.plate}* que viene a ${second.eta} min con ocupación *${second.occupancyLevel}*.\n`
+        if (
+          first.occupancyLevel === 'HIGH' &&
+          (second.occupancyLevel === 'LOW' || second.occupancyLevel === 'MEDIUM')
+        ) {
+          responseText += `\n⚠️ *Recomendación SITME (Sinergia):* El bus más cercano *${first.plate}* (${first.eta} min) viene *LLENO*. Te recomendamos esperar al bus *${second.plate}* que viene a ${second.eta} min con ocupación *${ocu(second.occupancyLevel)}*.\n`
         }
       }
 
@@ -386,63 +557,13 @@ REGLAS DE RESPUESTA:
       return responseText
     }
 
-    // 2. Greet
+    // 3. Greet
     if (text.includes('hola') || text.includes('buenas') || text.includes('buenos')) {
       context.step = 'greeted'
       return `👋 ¡Hola! Soy el asistente virtual de Metrolínea (SITME). 🤖
 Te ayudo a consultar rutas, ver la ocupación en tiempo real y evitar buses llenos.
 
 ¿En qué estación te encuentras actualmente y hacia dónde te diriges? (Ej: "Estoy en Provenza Occidental y voy a La Rosita")`
-    }
-
-    // 3. Identify locations (Provenza and La Rosita)
-    const isProvenza = text.includes('provenza')
-    const isRosita = text.includes('rosita')
-
-    if (isProvenza && isRosita) {
-      context.step = 'route_info'
-
-      // Calculate dynamic distances to buses
-      const activePtbBuses = buses.filter(b => b.route && b.route.name === 'PTB')
-      let firstBusText = `🔴 *Bus BUS-101* (llegando en *2 minutos*): Nivel de aglomeración *ALTO* (bastante lleno, sin sillas).`
-      let secondBusText = `🟢 *Bus BUS-102* (llegando en *12 minutos*): Nivel de aglomeración *BAJO* (sillas disponibles).`
-      let recTime = '10 minutos más'
-
-      if (activePtbBuses.length > 0) {
-        const sorted = activePtbBuses.map(b => {
-          const busLat = b.latitude || 7.0945
-          const busLon = b.longitude || -73.1118
-          const dist = getDistance(userLat, userLon, busLat, busLon)
-          return { ...b, dist, eta: Math.round(dist * 2) }
-        }).sort((x, y) => x.dist - y.dist)
-
-        const b1 = sorted.find(x => x.plate === 'BUS-101')
-        const b2 = sorted.find(x => x.plate === 'BUS-102')
-
-        if (b1) {
-          const b1Emoji = b1.occupancyLevel === 'HIGH' ? '🔴' : b1.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
-          firstBusText = `${b1Emoji} *Bus ${b1.plate}* (a *${b1.dist} km* / *${b1.eta} min*): Ocupación *${b1.occupancyLevel}* (${b1.passengerCount} pasajeros).`
-        }
-        if (b2) {
-          const b2Emoji = b2.occupancyLevel === 'HIGH' ? '🔴' : b2.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
-          secondBusText = `${b2Emoji} *Bus ${b2.plate}* (a *${b2.dist} km* / *${b2.eta} min*): Ocupación *${b2.occupancyLevel}* (${b2.passengerCount} pasajeros).`
-          if (b1 && b2) {
-            recTime = `${b2.eta - b1.eta} minutos más`
-          }
-        }
-      }
-
-      return `📍 *Desde Estación Provenza Occidental hacia La Rosita:*
-
-La mejor opción es tomar la ruta troncal *PTB* o *PTN*. Debes bajarte en la *Estación La Rosita* (Diagonal 15).
-
-Actualmente, estos son los próximos buses de la ruta *PTB* acercándose a tu ubicación:
-${firstBusText}
-${secondBusText}
-
-⚠️ *Recomendación SITME:* Te sugerimos esperar ${recTime} y tomar el bus *BUS-102* para viajar cómodo y ayudar a descongestionar el sistema.
-
-¿Te gustaría que te envíe un recordatorio cuando el bus menos aglomerado esté a una estación de distancia? (Responde: "Sí, activar alerta")`
     }
 
     if (text.includes('alerta') || text.includes('sí') || text.includes('si')) {
@@ -453,11 +574,16 @@ ${secondBusText}
     }
 
     // 4. General query about stations
-    if (text.includes('ocupacion') || text.includes('estado') || text.includes('estacion') || text.includes('estación')) {
+    if (
+      text.includes('ocupacion') ||
+      text.includes('estado') ||
+      text.includes('estacion') ||
+      text.includes('estación')
+    ) {
       let responseText = `📊 *Ocupación de Estaciones en Tiempo Real:* \n\n`
       stations.forEach((s) => {
         const emoji = s.occupancyLevel === 'HIGH' ? '🔴' : s.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
-        responseText += `${emoji} *${s.name}*: ${s.occupancyLevel} (${s.passengerCount} pasajeros) [Ubicación: Lat ${s.latitude || 'N/D'}, Lon ${s.longitude || 'N/D'}]\n`
+        responseText += `${emoji} *${s.name}*: ${ocu(s.occupancyLevel)} (${s.passengerCount} pasajeros) [Ubicación: Lat ${s.latitude || 'N/D'}, Lon ${s.longitude || 'N/D'}]\n`
       })
       responseText += `\n¿Quieres saber qué bus viene a alguna estación o a qué distancia está? Escribe "ver buses".`
       return responseText
