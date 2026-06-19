@@ -15,6 +15,7 @@ export type ScannedRoutes = {
     'buses.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'whatsapp.index': { paramsTuple?: []; params?: {} }
     'whatsapp.show': { paramsTuple: [ParamValue]; params: {'phone': ParamValue} }
+    'whatsapp.destroy': { paramsTuple: [ParamValue]; params: {'phone': ParamValue} }
     'whatsapp.status': { paramsTuple?: []; params?: {} }
     'whatsapp.webhook': { paramsTuple?: []; params?: {} }
     'whatsapp.simulate': { paramsTuple?: []; params?: {} }
@@ -47,6 +48,9 @@ export type ScannedRoutes = {
   PUT: {
     'stations.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'buses.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+  }
+  DELETE: {
+    'whatsapp.destroy': { paramsTuple: [ParamValue]; params: {'phone': ParamValue} }
   }
 }
 declare module '@adonisjs/core/types/http' {

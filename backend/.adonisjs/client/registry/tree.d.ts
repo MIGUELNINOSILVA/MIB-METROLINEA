@@ -32,6 +32,7 @@ export interface ApiDefinition {
   whatsapp: {
     index: typeof routes['whatsapp.index']
     show: typeof routes['whatsapp.show']
+    destroy: typeof routes['whatsapp.destroy']
     status: typeof routes['whatsapp.status']
     webhook: typeof routes['whatsapp.webhook']
     simulate: typeof routes['whatsapp.simulate']

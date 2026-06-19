@@ -72,6 +72,12 @@ const routes = {
     tokens: [{"old":"/api/v1/whatsapp/chats/:phone","type":0,"val":"api","end":""},{"old":"/api/v1/whatsapp/chats/:phone","type":0,"val":"v1","end":""},{"old":"/api/v1/whatsapp/chats/:phone","type":0,"val":"whatsapp","end":""},{"old":"/api/v1/whatsapp/chats/:phone","type":0,"val":"chats","end":""},{"old":"/api/v1/whatsapp/chats/:phone","type":1,"val":"phone","end":""}],
     types: placeholder as Registry['whatsapp.show']['types'],
   },
+  'whatsapp.destroy': {
+    methods: ["DELETE"],
+    pattern: '/api/v1/whatsapp/chats/:phone',
+    tokens: [{"old":"/api/v1/whatsapp/chats/:phone","type":0,"val":"api","end":""},{"old":"/api/v1/whatsapp/chats/:phone","type":0,"val":"v1","end":""},{"old":"/api/v1/whatsapp/chats/:phone","type":0,"val":"whatsapp","end":""},{"old":"/api/v1/whatsapp/chats/:phone","type":0,"val":"chats","end":""},{"old":"/api/v1/whatsapp/chats/:phone","type":1,"val":"phone","end":""}],
+    types: placeholder as Registry['whatsapp.destroy']['types'],
+  },
   'whatsapp.status': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/whatsapp/status',

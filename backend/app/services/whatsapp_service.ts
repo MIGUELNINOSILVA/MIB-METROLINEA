@@ -10,19 +10,21 @@ import Arrival from '#models/arrival'
 import env from '#start/env'
 
 export class WhatsappService {
-  private static instance: WhatsappService
   private sock: any = null
   private qrCode: string | null = null
   private status: 'DISCONNECTED' | 'INITIALIZING' | 'QR_READY' | 'CONNECTED' | 'ERROR' = 'DISCONNECTED'
   private errorMessage: string | null = null
 
-  private constructor() {}
+  private static getGlobalRef(): any {
+    const globalRef = global as any
+    if (!globalRef.__whatsappServiceInstance) {
+      globalRef.__whatsappServiceInstance = new WhatsappService()
+    }
+    return globalRef.__whatsappServiceInstance
+  }
 
   public static getInstance(): WhatsappService {
-    if (!this.instance) {
-      this.instance = new WhatsappService()
-    }
-    return this.instance
+    return this.getGlobalRef()
   }
 
   public getQrCode() {
@@ -66,7 +68,10 @@ export class WhatsappService {
         if (connection === 'close') {
           this.qrCode = null
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut
+          const shouldReconnect =
+            statusCode !== DisconnectReason.loggedOut &&
+            statusCode !== DisconnectReason.connectionReplaced &&
+            statusCode !== 440
 
           console.log(`[SITME WhatsApp] Connection closed. Reason code: ${statusCode}`, lastDisconnect?.error)
 
@@ -76,7 +81,7 @@ export class WhatsappService {
             this.status = 'INITIALIZING'
             this.initialize()
           } else {
-            console.log('[SITME WhatsApp] Logged out from WhatsApp.')
+            console.log('[SITME WhatsApp] Logged out or session replaced (conflict). Stopping reconnection.')
             this.status = 'DISCONNECTED'
             this.sock = null
           }
@@ -96,6 +101,9 @@ export class WhatsappService {
 
           const fromJid = msg.key.remoteJid
           const from = fromJid.split('@')[0]
+
+          // Allow any phone number to interact with the bot
+
           const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text
 
           if (!body) continue
@@ -119,15 +127,38 @@ export class WhatsappService {
     }
   }
 
+  public async shutdown() {
+    if (this.sock) {
+      console.log('[SITME WhatsApp] Closing Baileys socket connection...')
+      try {
+        await this.sock.end(undefined)
+      } catch (err) {
+        console.error('[SITME WhatsApp] Error closing socket:', err)
+      }
+      this.sock = null
+      this.status = 'DISCONNECTED'
+    }
+  }
+
   private async processMessage(from: string, body: string): Promise<string> {
     let chat = await WhatsappChat.findBy('phoneNumber', from)
     if (!chat) {
       chat = new WhatsappChat()
       chat.phoneNumber = from
-      chat.parsedContext = { step: 'welcome' }
+      chat.parsedContext = { step: 'welcome', messages: [] }
     }
 
     const context = chat.parsedContext
+    if (!Array.isArray(context.messages)) {
+      context.messages = []
+    }
+
+    // Append user message
+    context.messages.push({
+      sender: 'user',
+      text: body,
+      timestamp: new Date().toISOString()
+    })
 
     const stations = await Station.query()
     const routes = await Route.query().preload('routeStations', (q) => q.preload('station').orderBy('sequenceOrder', 'asc'))
@@ -142,6 +173,13 @@ export class WhatsappService {
     } else {
       reply = this.generateLocalResponse(body, context, stations)
     }
+
+    // Append bot response
+    context.messages.push({
+      sender: 'bot',
+      text: reply,
+      timestamp: new Date().toISOString()
+    })
 
     context.lastMessage = body
     chat.lastMessage = body

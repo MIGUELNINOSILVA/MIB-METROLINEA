@@ -139,6 +139,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['show']>>>
     }
   }
+  'whatsapp.destroy': {
+    methods: ["DELETE"]
+    pattern: '/api/v1/whatsapp/chats/:phone'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { phone: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['destroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['destroy']>>>
+    }
+  }
   'whatsapp.status': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/whatsapp/status'

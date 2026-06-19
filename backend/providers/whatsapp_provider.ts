@@ -12,4 +12,9 @@ export default class WhatsappProvider {
       whatsapp.initialize()
     }
   }
+
+  async shutdown() {
+    const whatsapp = WhatsappService.getInstance()
+    await whatsapp.shutdown()
+  }
 }

@@ -7,7 +7,6 @@ import WhatsappChat from '#models/whatsapp_chat'
 import env from '#start/env'
 import { WhatsappService } from '../services/whatsapp_service.js'
 
-const ALLOWED_PHONE = '573126078359'
 
 export default class WhatsappController {
   /**
@@ -41,9 +40,7 @@ export default class WhatsappController {
     const phone = params.phone
 
     // Enforce allowed phone limit in show view too
-    if (phone !== ALLOWED_PHONE) {
-      return response.status(403).json({ error: 'System is restricted to phone number +573126078359' })
-    }
+    // Phone restriction removed as requested
 
     const chat = await WhatsappChat.findBy('phoneNumber', phone)
     if (!chat) {
@@ -72,13 +69,23 @@ export default class WhatsappController {
   }
 
   /**
+   * Clear chat history
+   */
+  async destroy({ params, response }: HttpContext) {
+    const phone = params.phone
+
+    const chat = await WhatsappChat.findBy('phoneNumber', phone)
+    if (chat) {
+      await chat.delete()
+    }
+
+    return response.json({ message: 'Chat history cleared' })
+  }
+
+  /**
    * Internal shared handler for incoming messages
    */
   private async handleIncomingMessage(from: string, body: string) {
-    // Enforce allowed phone check
-    if (from !== ALLOWED_PHONE) {
-      throw new Error(`Unauthorized phone number: ${from}. Only +573126078359 is allowed.`)
-    }
 
     // 1. Get or create chat context
     let chat = await WhatsappChat.findBy('phoneNumber', from)
@@ -145,9 +152,7 @@ export default class WhatsappController {
       return response.status(400).json({ error: 'Missing from or body parameters' })
     }
 
-    if (from !== ALLOWED_PHONE) {
-      return response.status(403).json({ error: `System restricted to phone number +${ALLOWED_PHONE}` })
-    }
+    // Phone restriction removed as requested
 
     const { reply } = await this.handleIncomingMessage(from, body)
 
@@ -166,9 +171,7 @@ export default class WhatsappController {
       return response.status(400).json({ error: 'Missing from or body parameters' })
     }
 
-    if (from !== ALLOWED_PHONE) {
-      return response.status(403).json({ error: `System restricted to phone number +${ALLOWED_PHONE}` })
-    }
+    // Phone restriction removed as requested
 
     const { reply, chat } = await this.handleIncomingMessage(from, body)
 
