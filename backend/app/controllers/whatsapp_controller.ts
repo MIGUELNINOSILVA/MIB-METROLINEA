@@ -140,7 +140,7 @@ export default class WhatsappController {
     if (geminiKey) {
       reply = await this.generateGeminiResponse(geminiKey, body, context, stations, routes, buses, arrivals)
     } else {
-      reply = this.generateLocalResponse(body, context, stations, buses, routes)
+      reply = this.generateLocalResponse(body, context, stations, buses, routes, arrivals)
     }
 
     if (isAudio) {
@@ -261,10 +261,9 @@ ${arrivals.map((a) => `  * Bus ${a.bus.plate} llegará a ${a.station.name} en ${
 REGLAS DE RESPUESTA:
 1. Responde en español de forma amable, clara y concisa (idealmente en 2-4 párrafos máximo, usando emojis).
 2. Si el usuario te pregunta cómo llegar desde una estación de origen a un destino, sugiere qué rutas le sirven basándote en la lista de paradas.
-3. Si el usuario consulta la ubicación o distancia de un bus o transporte, calcula la distancia desde la ubicación del usuario (${userLat}, ${userLon}) usando la fórmula de Haversine:
-   d = 2 * R * asin(sqrt(sin^2(dLat/2) + cos(lat1)*cos(lat2)*sin^2(dLon/2))) con R = 6371 km.
-   Estima el tiempo de arribo (ETA) como: ETA = distancia * 2 minutos.
-   Reporta siempre explícitamente las coordenadas del bus, la distancia en km (con 1 decimal) y el tiempo aproximado (ETA) de llegada en minutos.
+3. Tiempo de llegada (ETA) de un bus a una estación: DA PRIORIDAD a la sección "Próximos Arribos a Estaciones (ETA)". Si existe un arribo registrado para ese bus y esa estación, usa ESE tiempo real (en minutos) y acláralo como dato en vivo. SOLO si no hay un arribo registrado, estima la distancia desde la ubicación del usuario (${userLat}, ${userLon}) con la fórmula de Haversine:
+   d = 2 * R * asin(sqrt(sin^2(dLat/2) + cos(lat1)*cos(lat2)*sin^2(dLon/2))) con R = 6371 km, y ETA = distancia * 2 minutos.
+   Reporta el tiempo aproximado (ETA) de llegada en minutos; cuando uses el estimado por distancia, incluye también la distancia en km (con 1 decimal).
 4. Sinergia contra Aglomeración (Crucial): Si un bus está a punto de llegar (o está muy cerca por distancia) pero está LLENO (occupancyLevel HIGH), y viene otro bus de la misma ruta poco después que está VACÍO o MEDIO (occupancyLevel LOW o MEDIUM), adviértele explícitamente y recomiéndale esperar el segundo bus para viajar más cómodo.
 5. Pregunta al usuario si desea activar una alerta cuando el bus menos congestionado esté a una estación de distancia.
 6. Mantén el tono conversacional. Guarda estados simples en el contexto del chat si es necesario.
@@ -300,14 +299,14 @@ REGLAS DE RESPUESTA:
       if (!response.ok) {
         const errorText = await response.text()
         console.error('Gemini API Error:', errorText)
-        return this.generateLocalResponse(message, context, stations, buses, routes)
+        return this.generateLocalResponse(message, context, stations, buses, routes, arrivals)
       }
 
       const data = await response.json()
       return (data as any).candidates[0].content.parts[0].text
     } catch (error) {
       console.error('Failed to contact Gemini API:', error)
-      return this.generateLocalResponse(message, context, stations, buses, routes)
+      return this.generateLocalResponse(message, context, stations, buses, routes, arrivals)
     }
   }
 
@@ -319,7 +318,8 @@ REGLAS DE RESPUESTA:
     context: any,
     stations: Station[],
     buses: Bus[],
-    routes: Route[]
+    routes: Route[],
+    arrivals: Arrival[]
   ): string {
     const text = message.toLowerCase()
     const userLat = context.userLatitude || 7.0945
@@ -450,19 +450,29 @@ REGLAS DE RESPUESTA:
                   busLat,
                   busLon
                 )
+                // Prioriza el ETA real por estación calculado en el analizador (tabla arrivals);
+                // si no hay arribo registrado, cae al estimado por distancia.
+                const registered = arrivals.find(
+                  (a) => a.busId === b.id && a.stationId === originStation.id
+                )
                 return {
                   plate: b.plate,
                   occupancyLevel: b.occupancyLevel,
                   passengerCount: b.passengerCount,
                   dist,
-                  eta: Math.round(dist * 2)
+                  eta: registered ? registered.etaMinutes : Math.round(dist * 2),
+                  etaSource: registered ? 'real' : 'estimado',
                 }
               })
               .sort((x, y) => x.dist - y.dist)
 
             sortedBuses.forEach((b, idx) => {
               const emoji = b.occupancyLevel === 'HIGH' ? '🔴' : b.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
-              busesText += `${idx === 0 ? '👉' : '•'} ${emoji} *Bus ${b.plate}* (a *${b.dist} km* / *${b.eta} min*): Ocupación *${ocu(b.occupancyLevel)}* (${b.passengerCount} pasajeros)\n`
+              const etaText =
+                b.etaSource === 'real'
+                  ? `llega en *${b.eta} min* ⏱️ (en vivo)`
+                  : `a *${b.dist} km* / *${b.eta} min*`
+              busesText += `${idx === 0 ? '👉' : '•'} ${emoji} *Bus ${b.plate}* (${etaText}): Ocupación *${ocu(b.occupancyLevel)}* (${b.passengerCount} pasajeros)\n`
             })
 
             // Synergy comparison
