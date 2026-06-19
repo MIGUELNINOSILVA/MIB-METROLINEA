@@ -7,6 +7,23 @@
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
+export class ArrivalSchema extends BaseModel {
+  static $columns = ['busId', 'createdAt', 'etaMinutes', 'id', 'stationId', 'updatedAt'] as const
+  $columns = ArrivalSchema.$columns
+  @column()
+  declare busId: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare etaMinutes: number
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare stationId: number
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
 export class AuthAccessTokenSchema extends BaseModel {
   static $columns = ['abilities', 'createdAt', 'expiresAt', 'hash', 'id', 'lastUsedAt', 'name', 'tokenableId', 'type', 'updatedAt'] as const
   $columns = AuthAccessTokenSchema.$columns
@@ -32,6 +49,80 @@ export class AuthAccessTokenSchema extends BaseModel {
   declare updatedAt: DateTime | null
 }
 
+export class BusSchema extends BaseModel {
+  static $columns = ['createdAt', 'id', 'occupancyLevel', 'passengerCount', 'plate', 'routeId', 'status', 'updatedAt'] as const
+  $columns = BusSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare occupancyLevel: string
+  @column()
+  declare passengerCount: number
+  @column()
+  declare plate: string
+  @column()
+  declare routeId: number | null
+  @column()
+  declare status: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class RouteStationSchema extends BaseModel {
+  static $columns = ['createdAt', 'id', 'routeId', 'sequenceOrder', 'stationId', 'updatedAt'] as const
+  $columns = RouteStationSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare routeId: number
+  @column()
+  declare sequenceOrder: number
+  @column()
+  declare stationId: number
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class RouteSchema extends BaseModel {
+  static $columns = ['createdAt', 'description', 'id', 'name', 'schedule', 'updatedAt'] as const
+  $columns = RouteSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare description: string | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare name: string
+  @column()
+  declare schedule: string | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class StationSchema extends BaseModel {
+  static $columns = ['createdAt', 'id', 'location', 'name', 'occupancyLevel', 'passengerCount', 'updatedAt'] as const
+  $columns = StationSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare location: string | null
+  @column()
+  declare name: string
+  @column()
+  declare occupancyLevel: string
+  @column()
+  declare passengerCount: number
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
 export class UserSchema extends BaseModel {
   static $columns = ['createdAt', 'email', 'fullName', 'id', 'password', 'updatedAt'] as const
   $columns = UserSchema.$columns
@@ -45,6 +136,23 @@ export class UserSchema extends BaseModel {
   declare id: number
   @column({ serializeAs: null })
   declare password: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class WhatsappChatSchema extends BaseModel {
+  static $columns = ['context', 'createdAt', 'id', 'lastMessage', 'phoneNumber', 'updatedAt'] as const
+  $columns = WhatsappChatSchema.$columns
+  @column()
+  declare context: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare lastMessage: string | null
+  @column()
+  declare phoneNumber: string
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
 }

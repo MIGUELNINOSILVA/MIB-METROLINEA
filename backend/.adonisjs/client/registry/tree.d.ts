@@ -18,4 +18,21 @@ export interface ApiDefinition {
       destroy: typeof routes['profile.access_tokens.destroy']
     }
   }
+  stations: {
+    index: typeof routes['stations.index']
+    update: typeof routes['stations.update']
+  }
+  routes: {
+    index: typeof routes['routes.index']
+  }
+  buses: {
+    index: typeof routes['buses.index']
+    update: typeof routes['buses.update']
+  }
+  whatsapp: {
+    index: typeof routes['whatsapp.index']
+    status: typeof routes['whatsapp.status']
+    webhook: typeof routes['whatsapp.webhook']
+    simulate: typeof routes['whatsapp.simulate']
+  }
 }
