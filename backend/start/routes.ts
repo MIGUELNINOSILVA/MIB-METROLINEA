@@ -41,6 +41,7 @@ router
     router.get('buses', [controllers.Buses, 'index'])
     router.put('buses/:id', [controllers.Buses, 'update'])
     router.get('whatsapp/chats', [controllers.Whatsapp, 'index'])
+    router.get('whatsapp/chats/:phone', [controllers.Whatsapp, 'show'])
     router.get('whatsapp/status', [controllers.Whatsapp, 'status'])
     router.post('whatsapp/webhook', [controllers.Whatsapp, 'webhook'])
     router.post('whatsapp/simulate', [controllers.Whatsapp, 'simulate'])

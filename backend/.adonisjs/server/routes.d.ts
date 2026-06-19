@@ -14,6 +14,7 @@ export type ScannedRoutes = {
     'buses.index': { paramsTuple?: []; params?: {} }
     'buses.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'whatsapp.index': { paramsTuple?: []; params?: {} }
+    'whatsapp.show': { paramsTuple: [ParamValue]; params: {'phone': ParamValue} }
     'whatsapp.status': { paramsTuple?: []; params?: {} }
     'whatsapp.webhook': { paramsTuple?: []; params?: {} }
     'whatsapp.simulate': { paramsTuple?: []; params?: {} }
@@ -24,6 +25,7 @@ export type ScannedRoutes = {
     'routes.index': { paramsTuple?: []; params?: {} }
     'buses.index': { paramsTuple?: []; params?: {} }
     'whatsapp.index': { paramsTuple?: []; params?: {} }
+    'whatsapp.show': { paramsTuple: [ParamValue]; params: {'phone': ParamValue} }
     'whatsapp.status': { paramsTuple?: []; params?: {} }
   }
   HEAD: {
@@ -32,6 +34,7 @@ export type ScannedRoutes = {
     'routes.index': { paramsTuple?: []; params?: {} }
     'buses.index': { paramsTuple?: []; params?: {} }
     'whatsapp.index': { paramsTuple?: []; params?: {} }
+    'whatsapp.show': { paramsTuple: [ParamValue]; params: {'phone': ParamValue} }
     'whatsapp.status': { paramsTuple?: []; params?: {} }
   }
   POST: {

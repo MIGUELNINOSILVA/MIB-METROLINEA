@@ -65,6 +65,7 @@
     "@japa/api-client": "^3.2.1",
     "@tuyau/core": "^1.2.2",
     "@vinejs/vine": "^4.4.0",
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
     "better-sqlite3": "^12.10.0",
     "luxon": "^3.7.2",
     "pg": "^8.22.0",

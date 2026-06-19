@@ -127,6 +127,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['index']>>>
     }
   }
+  'whatsapp.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/whatsapp/chats/:phone'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { phone: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/whatsapp_controller').default['show']>>>
+    }
+  }
   'whatsapp.status': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/whatsapp/status'
