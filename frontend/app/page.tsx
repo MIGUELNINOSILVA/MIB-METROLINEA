@@ -254,24 +254,24 @@ export default function Dashboard() {
     }
   }
 
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
   useEffect(() => {
     fetchData()
     fetchActiveChats()
-    const intervalData = setInterval(fetchData, 5000) // Poll stations/buses every 5s
-    const intervalChats = setInterval(fetchActiveChats, 3000) // Poll active chats list every 3s
-    return () => {
-      clearInterval(intervalData)
-      clearInterval(intervalChats)
-    }
+    // No auto-polling — user refreshes manually
   }, [])
 
   useEffect(() => {
     fetchChat(true)
-    const intervalChat = setInterval(() => fetchChat(false), 2000) // Poll selected chat log every 2s
-    return () => {
-      clearInterval(intervalChat)
-    }
+    // No auto-polling — chat updates after each sent message
   }, [chatNumber])
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true)
+    await Promise.all([fetchData(), fetchActiveChats()])
+    setIsRefreshing(false)
+  }
 
   // Send message simulation (submits to backend simulator, which updates db, then polls)
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -623,6 +623,25 @@ export default function Dashboard() {
     }
   }
 
+  // Strip coordinate lines from bot messages before display
+  const stripCoords = (text: string) =>
+    text
+      .split('\n')
+      .filter((line) => {
+        const l = line.toLowerCase()
+        return (
+          !l.includes('lat ') &&
+          !l.includes('lon ') &&
+          !l.includes('coordenadas:') &&
+          !l.includes('tu ubicación:') &&
+          !l.includes('ubicación: lat') &&
+          !l.includes('[ubicación:')
+        )
+      })
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n') // collapse excessive blank lines
+      .trim()
+
   // Color helper functions
   const getOccupancyBadge = (level: "LOW" | "MEDIUM" | "HIGH") => {
     switch (level) {
@@ -733,7 +752,7 @@ export default function Dashboard() {
           </div>
 
           {/* Tab Selector */}
-          <div className="flex border-b border-slate-800 gap-4 mb-4 mt-2">
+          <div className="flex items-center border-b border-slate-800 gap-4 mb-4 mt-2">
             <button
               onClick={() => setActiveTab("monitor")}
               className={`pb-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${activeTab === "monitor"
@@ -751,6 +770,23 @@ export default function Dashboard() {
                 }`}
             >
               👁️ Analizador IA (YOLOv8 & FiftyOne)
+            </button>
+
+            {/* Manual refresh — replaces the old auto-polling */}
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              title="Actualizar datos manualmente"
+              className="ml-auto mb-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg
+                className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {isRefreshing ? 'Actualizando…' : 'Actualizar'}
             </button>
           </div>
 
@@ -1396,27 +1432,10 @@ export default function Dashboard() {
                     🚌
                   </div>
                   <div className="text-left min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Chat:</span>
-                      <select
-                        value={chatNumber}
-                        onChange={(e) => setChatNumber(e.target.value)}
-                        className="bg-[#2a3942] text-slate-100 text-xs font-bold rounded-lg px-2 py-1 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 max-w-[130px] cursor-pointer"
-                        title="Selecciona la conversación"
-                      >
-                        <option value={DEFAULT_PHONE}>+573126078359 (Simulador)</option>
-                        {activeChats
-                          .filter((c) => c.phoneNumber !== DEFAULT_PHONE)
-                          .map((c) => (
-                            <option key={c.phoneNumber} value={c.phoneNumber}>
-                              +{c.phoneNumber}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
+                    <div className="text-sm font-bold text-slate-100">SITME Asistente</div>
                     <div className="text-xs text-emerald-400 flex items-center gap-1 mt-0.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      Monitoreo en Vivo (SITME)
+                      Monitoreo en Vivo
                     </div>
                   </div>
                 </div>
@@ -1470,7 +1489,7 @@ export default function Dashboard() {
                         </div>
                       </div>
                     ) : (
-                      m.text
+                      m.isAudio ? m.text : stripCoords(m.text)
                     )}
                     <div className="text-[10px] text-right text-slate-400 mt-1">
                       {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

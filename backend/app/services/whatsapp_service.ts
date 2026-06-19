@@ -318,8 +318,6 @@ REGLAS DE RESPUESTA:
     routes: Route[]
   ): string {
     const text = message.toLowerCase()
-    const userLat = context.userLatitude || 7.0945
-    const userLon = context.userLongitude || -73.1118
 
     // Haversine Distance helper
     const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -501,55 +499,37 @@ No encontré una ruta directa activa entre estas estaciones en este momento. Te 
     if (
       text.includes('bus') ||
       text.includes('buses') ||
+      text.includes('rutas') ||
+      text.includes('flota') ||
       text.includes('dónde viene') ||
       text.includes('donde viene') ||
-      text.includes('distancia') ||
       text.includes('telemetria') ||
       text.includes('telemetría') ||
       text.includes('ubicacion') ||
       text.includes('ubicación')
     ) {
-      let responseText = `🚌 *Telemetría y Estado de la Flota en Tiempo Real:* \n\n`
-      responseText += `📍 *Tu ubicación:* Lat ${userLat}, Lon ${userLon}\n\n`
+      let responseText = `🚌 *Estado actual de la Flota Metrolínea:*\n\n`
 
       buses.forEach((b) => {
-        const busLat = b.latitude || 7.0945
-        const busLon = b.longitude || -73.1118
-        const dist = getDistance(userLat, userLon, busLat, busLon)
-        const eta = Math.round(dist * 2)
         const emoji = b.occupancyLevel === 'HIGH' ? '🔴' : b.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
+        const routeName = b.route ? b.route.name : 'Sin ruta asignada'
 
-        responseText += `🚌 *Bus ${b.plate}* (Ruta: ${b.route ? b.route.name : 'Ninguna'}):\n`
-        responseText += `  • Aforo/Ocupación: ${emoji} *${ocu(b.occupancyLevel)}* (${b.passengerCount} pasajeros)\n`
-        responseText += `  • Ubicación: Lat ${busLat}, Lon ${busLon}\n`
-        responseText += `  • Distancia: *${dist} km*\n`
-        responseText += `  • Tiempo Estimado (ETA): *${eta} minutos*\n`
-        responseText += `  • Estado: ${b.status === 'IN_TRANSIT' ? '🟢 En tránsito' : '🔴 Detenido'}\n\n`
+        // Find matching route stops to show the path
+        const matchingRoute = routes.find((r) => r.id === b.routeId)
+        const stopsText = matchingRoute && matchingRoute.routeStations?.length
+          ? matchingRoute.routeStations
+              .sort((a: any, b: any) => a.sequenceOrder - b.sequenceOrder)
+              .map((rs: any) => rs.station?.name || '?')
+              .join(' ➔ ')
+          : 'Paradas no disponibles'
+
+        responseText += `🚌 *Bus ${b.plate}* (Ruta: *${routeName}*):\n`
+        responseText += `  ${emoji} Aforo: *${ocu(b.occupancyLevel)}* (${b.passengerCount} pasajeros)\n`
+        responseText += `  🛣️ Recorrido: ${stopsText}\n`
+        responseText += `  📡 Estado: ${b.status === 'IN_TRANSIT' ? '🟢 En tránsito' : b.status === 'STOPPED' ? '🟡 Detenido' : '🔴 Fuera de servicio'}\n\n`
       })
 
-      // Synergy logic in fallback
-      const activePtbBuses = buses.filter((b) => b.route && b.route.name === 'PTB')
-      if (activePtbBuses.length >= 2) {
-        const sortedBuses = activePtbBuses
-          .map((b) => {
-            const busLat = b.latitude || 7.0945
-            const busLon = b.longitude || -73.1118
-            const dist = getDistance(userLat, userLon, busLat, busLon)
-            return { ...b, dist, eta: Math.round(dist * 2) }
-          })
-          .sort((x, y) => x.dist - y.dist)
-
-        const first = sortedBuses[0]
-        const second = sortedBuses[1]
-        if (
-          first.occupancyLevel === 'HIGH' &&
-          (second.occupancyLevel === 'LOW' || second.occupancyLevel === 'MEDIUM')
-        ) {
-          responseText += `\n⚠️ *Recomendación SITME (Sinergia):* El bus más cercano *${first.plate}* (${first.eta} min) viene *LLENO*. Te recomendamos esperar al bus *${second.plate}* que viene a ${second.eta} min con ocupación *${ocu(second.occupancyLevel)}*.\n`
-        }
-      }
-
-      responseText += `\n¿Te gustaría que te envíe un recordatorio cuando el bus menos aglomerado esté cerca?`
+      responseText += `💡 Para saber *cuánto tarda en llegar* un bus hasta ti, dime tu estación de origen y destino.\nEj: _"Estoy en Provenza y quiero ir a La Rosita"_`
       return responseText
     }
 
