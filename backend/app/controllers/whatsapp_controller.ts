@@ -340,6 +340,18 @@ REGLAS DE RESPUESTA:
       return Math.round(R * c * 10) / 10
     }
 
+    // Occupancy translation helper (EN → ES) for user-facing messages
+    const ocu = (level: string | null | undefined): string => {
+      switch ((level ?? '').toUpperCase()) {
+        case 'HIGH':   return 'ALTO'
+        case 'MEDIUM': return 'MEDIO'
+        case 'LOW':    return 'BAJO'
+        case 'EMPTY':  return 'VACÍO'
+        case 'FULL':   return 'LLENO'
+        default:       return level || 'VACÍO'
+      }
+    }
+
     // 0. List Stations Query
     if (
       text.includes('qué estaciones existen') ||
@@ -358,7 +370,7 @@ REGLAS DE RESPUESTA:
         responseText += `🏢 *${s.name}*\n`
         responseText += `  • Ubicación: ${s.location || 'Sin dirección'}\n`
         responseText += `  • Coordenadas: Lat ${s.latitude || 'N/D'}, Lon ${s.longitude || 'N/D'}\n`
-        responseText += `  • Estado de Aforo: ${emoji} *${s.occupancyLevel}* (${s.passengerCount} personas)\n\n`
+        responseText += `  • Estado de Aforo: ${emoji} *${ocu(s.occupancyLevel)}* (${s.passengerCount} personas)\n\n`
       })
       responseText += `📍 Puedes consultar rutas diciendo por ejemplo: "Cómo voy de Provenza al Centro" o "Ubicación de los buses".`
       return responseText
@@ -450,7 +462,7 @@ REGLAS DE RESPUESTA:
 
             sortedBuses.forEach((b, idx) => {
               const emoji = b.occupancyLevel === 'HIGH' ? '🔴' : b.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
-              busesText += `${idx === 0 ? '👉' : '•'} ${emoji} *Bus ${b.plate}* (a *${b.dist} km* / *${b.eta} min*): Ocupación *${b.occupancyLevel}* (${b.passengerCount} pasajeros)\n`
+              busesText += `${idx === 0 ? '👉' : '•'} ${emoji} *Bus ${b.plate}* (a *${b.dist} km* / *${b.eta} min*): Ocupación *${ocu(b.occupancyLevel)}* (${b.passengerCount} pasajeros)\n`
             })
 
             // Synergy comparison
@@ -461,7 +473,7 @@ REGLAS DE RESPUESTA:
                 first.occupancyLevel === 'HIGH' &&
                 (second.occupancyLevel === 'LOW' || second.occupancyLevel === 'MEDIUM')
               ) {
-                busesText += `\n⚠️ *Recomendación SITME (Sinergia):* El bus más cercano *${first.plate}* viene *LLENO*. Te recomendamos esperar al bus *${second.plate}* que llegará en *${second.eta} minutos* con ocupación *${second.occupancyLevel}*.\n`
+                busesText += `\n⚠️ *Recomendación SITME (Sinergia):* El bus más cercano *${first.plate}* viene *LLENO*. Te recomendamos esperar al bus *${second.plate}* que llegará en *${second.eta} minutos* con ocupación *${ocu(second.occupancyLevel)}*.\n`
               }
             }
           } else {
@@ -471,8 +483,8 @@ REGLAS DE RESPUESTA:
           return `📍 *Ruta sugerida desde ${originStation.name} hasta ${destStation.name}:*
 
 La mejor opción es tomar la ruta troncal *${servingRoute.name}*. 
-• Estación de origen: *${originStation.name}* (Aforo actual: *${originStation.occupancyLevel}* / ${originStation.passengerCount} pers.)
-• Estación de destino: *${destStation.name}* (Aforo actual: *${destStation.occupancyLevel}* / ${destStation.passengerCount} pers.)
+• Estación de origen: *${originStation.name}* (Aforo actual: *${ocu(originStation.occupancyLevel)}* / ${originStation.passengerCount} pers.)
+• Estación de destino: *${destStation.name}* (Aforo actual: *${ocu(destStation.occupancyLevel)}* / ${destStation.passengerCount} pers.)
 
 🚌 *Próximos arribos a tu estación:*
 ${busesText}
@@ -512,7 +524,7 @@ No encontré una ruta directa activa entre estas estaciones en este momento. Te 
         const emoji = b.occupancyLevel === 'HIGH' ? '🔴' : b.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
 
         responseText += `🚌 *Bus ${b.plate}* (Ruta: ${b.route ? b.route.name : 'Ninguna'}):\n`
-        responseText += `  • Aforo/Ocupación: ${emoji} *${b.occupancyLevel}* (${b.passengerCount} pasajeros)\n`
+        responseText += `  • Aforo/Ocupación: ${emoji} *${ocu(b.occupancyLevel)}* (${b.passengerCount} pasajeros)\n`
         responseText += `  • Ubicación: Lat ${busLat}, Lon ${busLon}\n`
         responseText += `  • Distancia: *${dist} km*\n`
         responseText += `  • Tiempo Estimado (ETA): *${eta} minutos*\n`
@@ -537,7 +549,7 @@ No encontré una ruta directa activa entre estas estaciones en este momento. Te 
           first.occupancyLevel === 'HIGH' &&
           (second.occupancyLevel === 'LOW' || second.occupancyLevel === 'MEDIUM')
         ) {
-          responseText += `\n⚠️ *Recomendación SITME (Sinergia):* El bus más cercano *${first.plate}* (${first.eta} min) viene *LLENO*. Te recomendamos esperar al bus *${second.plate}* que viene a ${second.eta} min con ocupación *${second.occupancyLevel}*.\n`
+          responseText += `\n⚠️ *Recomendación SITME (Sinergia):* El bus más cercano *${first.plate}* (${first.eta} min) viene *LLENO*. Te recomendamos esperar al bus *${second.plate}* que viene a ${second.eta} min con ocupación *${ocu(second.occupancyLevel)}*.\n`
         }
       }
 
@@ -571,7 +583,7 @@ Te ayudo a consultar rutas, ver la ocupación en tiempo real y evitar buses llen
       let responseText = `📊 *Ocupación de Estaciones en Tiempo Real:* \n\n`
       stations.forEach((s) => {
         const emoji = s.occupancyLevel === 'HIGH' ? '🔴' : s.occupancyLevel === 'MEDIUM' ? '🟡' : '🟢'
-        responseText += `${emoji} *${s.name}*: ${s.occupancyLevel} (${s.passengerCount} pasajeros) [Ubicación: Lat ${s.latitude || 'N/D'}, Lon ${s.longitude || 'N/D'}]\n`
+        responseText += `${emoji} *${s.name}*: ${ocu(s.occupancyLevel)} (${s.passengerCount} pasajeros) [Ubicación: Lat ${s.latitude || 'N/D'}, Lon ${s.longitude || 'N/D'}]\n`
       })
       responseText += `\n¿Quieres saber qué bus viene a alguna estación o a qué distancia está? Escribe "ver buses".`
       return responseText
