@@ -180,7 +180,7 @@ export default function Dashboard() {
             setUserLatitude(data.parsedContext.userLatitude)
             setUserLongitude(data.parsedContext.userLongitude)
           }
-          
+
           let rawMessages = data.parsedContext.messages
           if (!Array.isArray(rawMessages)) {
             rawMessages = [
@@ -554,21 +554,19 @@ export default function Dashboard() {
           <div className="flex border-b border-slate-800 gap-4 mb-4 mt-2">
             <button
               onClick={() => setActiveTab("monitor")}
-              className={`pb-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${
-                activeTab === "monitor"
+              className={`pb-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${activeTab === "monitor"
                   ? "border-emerald-500 text-emerald-400 font-extrabold"
                   : "border-transparent text-slate-400 hover:text-slate-200"
-              }`}
+                }`}
             >
               📊 Centro de Monitoreo
             </button>
             <button
               onClick={() => setActiveTab("ai_analyze")}
-              className={`pb-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${
-                activeTab === "ai_analyze"
+              className={`pb-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${activeTab === "ai_analyze"
                   ? "border-emerald-500 text-emerald-400 font-extrabold"
                   : "border-transparent text-slate-400 hover:text-slate-200"
-              }`}
+                }`}
             >
               👁️ Analizador IA (YOLOv8 & FiftyOne)
             </button>
@@ -685,33 +683,30 @@ export default function Dashboard() {
                       <button
                         type="button"
                         onClick={() => setTableFilterType("all")}
-                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
-                          tableFilterType === "all"
+                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${tableFilterType === "all"
                             ? "bg-emerald-600 text-white font-extrabold"
                             : "text-slate-400 hover:text-slate-200"
-                        }`}
+                          }`}
                       >
                         Todos
                       </button>
                       <button
                         type="button"
                         onClick={() => setTableFilterType("stations")}
-                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
-                          tableFilterType === "stations"
+                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${tableFilterType === "stations"
                             ? "bg-emerald-600 text-white font-extrabold"
                             : "text-slate-400 hover:text-slate-200"
-                        }`}
+                          }`}
                       >
                         Estaciones
                       </button>
                       <button
                         type="button"
                         onClick={() => setTableFilterType("buses")}
-                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
-                          tableFilterType === "buses"
+                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${tableFilterType === "buses"
                             ? "bg-emerald-600 text-white font-extrabold"
                             : "text-slate-400 hover:text-slate-200"
-                        }`}
+                          }`}
                       >
                         Buses
                       </button>
@@ -901,11 +896,10 @@ export default function Dashboard() {
                           setAnalyzeTargetId("")
                           setAnalyzeResult(null)
                         }}
-                        className={`py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-                          analyzeTargetType === "station"
+                        className={`py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${analyzeTargetType === "station"
                             ? "bg-emerald-600/20 border-emerald-500 text-emerald-300 font-extrabold"
                             : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200"
-                        }`}
+                          }`}
                       >
                         Estación
                       </button>
@@ -916,11 +910,10 @@ export default function Dashboard() {
                           setAnalyzeTargetId("")
                           setAnalyzeResult(null)
                         }}
-                        className={`py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-                          analyzeTargetType === "bus"
+                        className={`py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${analyzeTargetType === "bus"
                             ? "bg-emerald-600/20 border-emerald-500 text-emerald-300 font-extrabold"
                             : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200"
-                        }`}
+                          }`}
                       >
                         Autobús
                       </button>
@@ -944,15 +937,15 @@ export default function Dashboard() {
                       <option value="">-- Seleccionar --</option>
                       {analyzeTargetType === "station"
                         ? stations.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name} (Actual: {s.passengerCount} pers.)
-                            </option>
-                          ))
+                          <option key={s.id} value={s.id}>
+                            {s.name} (Actual: {s.passengerCount} pers.)
+                          </option>
+                        ))
                         : buses.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              Bus {b.plate} - Ruta {b.route ? b.route.name : "Sin Ruta"} (Actual: {b.passengerCount} pers.)
-                            </option>
-                          ))}
+                          <option key={b.id} value={b.id}>
+                            Bus {b.plate} - Ruta {b.route ? b.route.name : "Sin Ruta"} (Actual: {b.passengerCount} pers.)
+                          </option>
+                        ))}
                     </select>
                   </div>
 
@@ -1073,7 +1066,7 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
-                          
+
                           <div className="text-xs text-slate-300 bg-slate-900/50 p-2.5 rounded border border-slate-800 mt-1 leading-relaxed">
                             💡 *Sinergia Metrolínea:* La base de datos ha sido actualizada. En la base de datos de FiftyOne se ha registrado este fotograma con la etiqueta del identificador `{analyzeResult.bus_id}` y el tiempo de inferencia fue de **{analyzeResult.inference_ms} ms**.
                           </div>
@@ -1151,15 +1144,15 @@ export default function Dashboard() {
                   <div
                     key={idx}
                     className={`max-w-[85%] rounded-xl p-3 text-sm leading-relaxed ${m.sender === "user"
-                        ? "bg-[#005c4b] text-slate-50 self-end rounded-tr-none"
-                        : "bg-[#202c33] text-slate-100 self-start rounded-tl-none border border-slate-800"
+                      ? "bg-[#005c4b] text-slate-50 self-end rounded-tr-none"
+                      : "bg-[#202c33] text-slate-100 self-start rounded-tl-none border border-slate-800"
                       }`}
                     style={{ whiteSpace: "pre-line" }}
                   >
                     {m.isAudio ? (
                       <div className="flex flex-col gap-2 min-w-[200px]">
                         <div className="flex items-center gap-2">
-                          <button 
+                          <button
                             type="button"
                             className="w-8 h-8 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center flex-shrink-0 cursor-pointer active:scale-95 transition-all"
                           >
@@ -1169,10 +1162,10 @@ export default function Dashboard() {
                           </button>
                           <div className="flex-1 flex items-end gap-0.5 h-6 pb-1">
                             {[2, 3, 5, 2, 4, 6, 8, 5, 3, 6, 7, 4, 3, 5, 2, 4].map((h, i) => (
-                              <span 
-                                key={i} 
-                                className="w-[3px] bg-emerald-400 rounded-full" 
-                                style={{ height: `${h * 10}%` }} 
+                              <span
+                                key={i}
+                                className="w-[3px] bg-emerald-400 rounded-full"
+                                style={{ height: `${h * 10}%` }}
                               />
                             ))}
                           </div>
@@ -1368,12 +1361,12 @@ export default function Dashboard() {
                       key={level}
                       onClick={() => handleUpdateStation(level, selectedStation.passengerCount)}
                       className={`py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${selectedStation.occupancyLevel === level
-                          ? level === "HIGH"
-                            ? "bg-rose-500/20 border-rose-500 text-rose-300"
-                            : level === "MEDIUM"
-                              ? "bg-amber-500/20 border-amber-500 text-amber-300"
-                              : "bg-emerald-500/20 border-emerald-500 text-emerald-300"
-                          : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                        ? level === "HIGH"
+                          ? "bg-rose-500/20 border-rose-500 text-rose-300"
+                          : level === "MEDIUM"
+                            ? "bg-amber-500/20 border-amber-500 text-amber-300"
+                            : "bg-emerald-500/20 border-emerald-500 text-emerald-300"
+                        : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
                         }`}
                     >
                       {level}
@@ -1442,12 +1435,12 @@ export default function Dashboard() {
                       key={level}
                       onClick={() => handleUpdateBus(level, selectedBus.passengerCount, selectedBus.status)}
                       className={`py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${selectedBus.occupancyLevel === level
-                          ? level === "HIGH"
-                            ? "bg-rose-500/20 border-rose-500 text-rose-300"
-                            : level === "MEDIUM"
-                              ? "bg-amber-500/20 border-amber-500 text-amber-300"
-                              : "bg-emerald-500/20 border-emerald-500 text-emerald-300"
-                          : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                        ? level === "HIGH"
+                          ? "bg-rose-500/20 border-rose-500 text-rose-300"
+                          : level === "MEDIUM"
+                            ? "bg-amber-500/20 border-amber-500 text-amber-300"
+                            : "bg-emerald-500/20 border-emerald-500 text-emerald-300"
+                        : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
                         }`}
                     >
                       {level}
