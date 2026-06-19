@@ -14,6 +14,7 @@ export type ScannedRoutes = {
     'routes.index': { paramsTuple?: []; params?: {} }
     'buses.index': { paramsTuple?: []; params?: {} }
     'buses.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'buses.eta': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'whatsapp.index': { paramsTuple?: []; params?: {} }
     'whatsapp.show': { paramsTuple: [ParamValue]; params: {'phone': ParamValue} }
     'whatsapp.destroy': { paramsTuple: [ParamValue]; params: {'phone': ParamValue} }
@@ -44,6 +45,7 @@ export type ScannedRoutes = {
     'auth.access_tokens.store': { paramsTuple?: []; params?: {} }
     'profile.access_tokens.destroy': { paramsTuple?: []; params?: {} }
     'stations.analyze': { paramsTuple?: []; params?: {} }
+    'buses.eta': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'whatsapp.webhook': { paramsTuple?: []; params?: {} }
     'whatsapp.simulate': { paramsTuple?: []; params?: {} }
   }

@@ -5,6 +5,21 @@ import { useState, useEffect, useRef } from "react"
 const BACKEND_URL = "http://localhost:3333/api/v1"
 const DEFAULT_PHONE = "573126078359"
 
+// Haversine distance (km) — mirrors the backend whatsapp_service helper
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371 // km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLon = ((lon2 - lon1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return Math.round(R * c * 10) / 10
+}
+
 interface Station {
   id: number
   name: string
@@ -112,6 +127,15 @@ export default function Dashboard() {
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false)
   const [analyzeResult, setAnalyzeResult] = useState<any | null>(null)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+
+  // ETA Calculator states (opened from telemetry table for buses)
+  const [etaBus, setEtaBus] = useState<Bus | null>(null)
+  const [etaSpeed, setEtaSpeed] = useState<string>("25")
+  const [etaLat, setEtaLat] = useState<string>("")
+  const [etaLon, setEtaLon] = useState<string>("")
+  const [etaDestStationId, setEtaDestStationId] = useState<string>("")
+  const [etaSaving, setEtaSaving] = useState<boolean>(false)
+  const [etaSaveMsg, setEtaSaveMsg] = useState<string | null>(null)
 
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -392,6 +416,82 @@ export default function Dashboard() {
       setAnalyzeError(err.message || "No se pudo conectar con el servidor de análisis.")
     } finally {
       setIsAnalyzing(false)
+    }
+  }
+
+  // Open the YOLOv8 AI Analyzer pre-targeted to a telemetry row
+  const openAnalyzerFor = (type: "station" | "bus", id: number) => {
+    setActiveTab("ai_analyze")
+    setAnalyzeTargetType(type)
+    setAnalyzeTargetId(id.toString())
+    setAnalyzeResult(null)
+    setAnalyzeError(null)
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    }
+  }
+
+  // Open the ETA calculator modal for a bus row
+  const openEtaCalculator = (bus: Bus) => {
+    setEtaBus(bus)
+    setEtaSpeed("25")
+    setEtaLat(bus.latitude != null ? bus.latitude.toString() : userLatitude.toString())
+    setEtaLon(bus.longitude != null ? bus.longitude.toString() : userLongitude.toString())
+    setEtaDestStationId("")
+    setEtaSaveMsg(null)
+  }
+
+  // Compute the live ETA from the modal inputs
+  const computeEta = () => {
+    const dest = stations.find((s) => s.id.toString() === etaDestStationId)
+    const speed = parseFloat(etaSpeed)
+    const lat = parseFloat(etaLat)
+    const lon = parseFloat(etaLon)
+
+    if (
+      !dest ||
+      dest.latitude == null ||
+      dest.longitude == null ||
+      isNaN(lat) ||
+      isNaN(lon)
+    ) {
+      return { distKm: null as number | null, etaMin: null as number | null }
+    }
+
+    const distKm = haversineKm(lat, lon, dest.latitude, dest.longitude)
+    const etaMin = speed > 0 ? Math.round((distKm / speed) * 60) : null
+    return { distKm, etaMin }
+  }
+
+  // Persist the computed ETA (feeds the SITME assistant via arrivals table)
+  const handleSaveEta = async () => {
+    if (!etaBus || !etaDestStationId) return
+    const { etaMin } = computeEta()
+    if (etaMin == null) return
+
+    setEtaSaving(true)
+    setEtaSaveMsg(null)
+    try {
+      const res = await fetch(`${BACKEND_URL}/buses/${etaBus.id}/eta`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stationId: Number(etaDestStationId),
+          etaMinutes: etaMin,
+          latitude: etaLat,
+          longitude: etaLon,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Error al guardar el ETA")
+      }
+      setEtaSaveMsg("✅ ETA registrado y enviado al asistente SITME.")
+      await fetchData()
+    } catch (err: any) {
+      setEtaSaveMsg("❌ " + (err.message || "No se pudo guardar el ETA."))
+    } finally {
+      setEtaSaving(false)
     }
   }
 
@@ -774,12 +874,13 @@ export default function Dashboard() {
                             <th className="p-3.5">Coordenadas (GPS)</th>
                             <th className="p-3.5">Ocupación</th>
                             <th className="p-3.5 text-right">Pasajeros</th>
+                            <th className="p-3.5 text-right">Acciones</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/60 text-xs text-slate-300">
                           {filtered.length === 0 ? (
                             <tr>
-                              <td colSpan={6} className="p-6 text-center text-slate-500 italic">
+                              <td colSpan={7} className="p-6 text-center text-slate-500 italic">
                                 No se encontraron registros con los filtros aplicados.
                               </td>
                             </tr>
@@ -810,6 +911,31 @@ export default function Dashboard() {
                                   </span>
                                 </td>
                                 <td className="p-3.5 text-right font-bold text-slate-200">{item.passengerCount}</td>
+                                <td className="p-3.5">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => openAnalyzerFor(item.type as "station" | "bus", Number(item.id.split("-")[1]))}
+                                      className="px-2 py-1 text-[10px] font-bold rounded-md bg-emerald-600/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30 transition-colors cursor-pointer whitespace-nowrap"
+                                      title="Abrir Analizador IA (YOLOv8) para este objetivo"
+                                    >
+                                      👁️ Analizar IA
+                                    </button>
+                                    {item.type === "bus" && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const b = buses.find((x) => `bus-${x.id}` === item.id)
+                                          if (b) openEtaCalculator(b)
+                                        }}
+                                        className="px-2 py-1 text-[10px] font-bold rounded-md bg-teal-600/15 text-teal-300 border border-teal-500/30 hover:bg-teal-600/30 transition-colors cursor-pointer whitespace-nowrap"
+                                        title="Calcular tiempo estimado de llegada (ETA)"
+                                      >
+                                        🕐 ETA
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
                               </tr>
                             ))
                           )}
@@ -1508,6 +1634,126 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* MODAL: ETA Calculator (velocidad + GPS → tiempo de llegada) */}
+      {etaBus && (() => {
+        const { distKm, etaMin } = computeEta()
+        const dest = stations.find((s) => s.id.toString() === etaDestStationId)
+        return (
+          <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full flex flex-col gap-4 text-left shadow-2xl">
+              <div>
+                <h4 className="font-bold text-slate-100 text-base flex items-center gap-2">
+                  🕐 Calcular ETA — Bus {etaBus.plate}
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Ingresa la velocidad y posición GPS del bus para estimar cuánto tarda en llegar a una estación.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="text-xs text-slate-400 block mb-1">Velocidad del bus (km/h):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={etaSpeed}
+                    onChange={(e) => setEtaSpeed(e.target.value)}
+                    placeholder="Ej: 25"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-xs p-2.5 text-slate-200 focus:ring-1 focus:ring-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Latitud del bus:</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={etaLat}
+                    onChange={(e) => setEtaLat(e.target.value)}
+                    placeholder="Ej: 7.0945"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-xs p-2.5 text-slate-200 focus:ring-1 focus:ring-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Longitud del bus:</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={etaLon}
+                    onChange={(e) => setEtaLon(e.target.value)}
+                    placeholder="Ej: -73.1118"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-xs p-2.5 text-slate-200 focus:ring-1 focus:ring-teal-500"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-slate-400 block mb-1">Estación de destino:</label>
+                  <select
+                    value={etaDestStationId}
+                    onChange={(e) => setEtaDestStationId(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-xs p-2.5 text-slate-200 focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                  >
+                    <option value="">-- Seleccionar estación --</option>
+                    {stations.map((s) => (
+                      <option key={s.id} value={s.id} disabled={s.latitude == null || s.longitude == null}>
+                        {s.name}{s.latitude == null || s.longitude == null ? " (sin coordenadas)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Result */}
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Distancia</div>
+                  <div className="text-lg font-bold font-mono text-teal-400 mt-0.5">
+                    {distKm != null ? `${distKm} km` : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Tiempo de llegada</div>
+                  <div className="text-lg font-bold font-mono text-emerald-400 mt-0.5">
+                    {etaMin != null ? `${etaMin} min` : "—"}
+                  </div>
+                </div>
+                {distKm == null && (
+                  <div className="col-span-2 text-[10px] text-slate-500 italic">
+                    Selecciona una estación con coordenadas e ingresa la posición del bus.
+                  </div>
+                )}
+                {distKm != null && etaMin == null && (
+                  <div className="col-span-2 text-[10px] text-amber-400 italic">
+                    Ingresa una velocidad mayor a 0 para estimar el tiempo.
+                  </div>
+                )}
+              </div>
+
+              {etaSaveMsg && (
+                <div className="text-xs text-slate-300 bg-slate-800/50 p-2.5 rounded-lg border border-slate-800">
+                  {etaSaveMsg}
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end mt-1">
+                <button
+                  onClick={() => setEtaBus(null)}
+                  className="px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors cursor-pointer"
+                >
+                  Cerrar
+                </button>
+                <button
+                  onClick={handleSaveEta}
+                  disabled={etaSaving || etaMin == null || !dest}
+                  className="px-3 py-1.5 text-xs font-semibold bg-teal-600 hover:bg-teal-500 disabled:opacity-50 rounded-lg text-white transition-colors cursor-pointer"
+                >
+                  {etaSaving ? "Guardando..." : "Guardar ETA"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

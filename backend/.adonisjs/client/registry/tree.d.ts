@@ -29,6 +29,7 @@ export interface ApiDefinition {
   buses: {
     index: typeof routes['buses.index']
     update: typeof routes['buses.update']
+    eta: typeof routes['buses.eta']
   }
   whatsapp: {
     index: typeof routes['whatsapp.index']

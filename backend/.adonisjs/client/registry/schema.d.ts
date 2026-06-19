@@ -127,6 +127,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/buses_controller').default['update']>>>
     }
   }
+  'buses.eta': {
+    methods: ["POST"]
+    pattern: '/api/v1/buses/:id/eta'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/buses_controller').default['eta']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/buses_controller').default['eta']>>>
+    }
+  }
   'whatsapp.index': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/whatsapp/chats'

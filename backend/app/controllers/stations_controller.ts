@@ -1,4 +1,5 @@
 import Station from '#models/station'
+import yolo from '#services/yolo_service'
 import type { HttpContext } from '@adonisjs/core/http'
 
 export default class StationsController {
@@ -47,29 +48,12 @@ export default class StationsController {
     }
 
     try {
-      const { readFileSync } = await import('node:fs')
-      const fileBytes = readFileSync(imageFile.tmpPath)
-      const blob = new Blob([new Uint8Array(fileBytes)], { type: imageFile.headers['content-type'] || 'image/jpeg' })
+      const { readFile } = await import('node:fs/promises')
+      const fileBytes = await readFile(imageFile.tmpPath)
 
-      const formData = new FormData()
-      formData.append('file', blob, imageFile.clientName || 'upload.jpg')
-      formData.append('bus_id', `${targetType}-${targetId}`)
-      formData.append('save_to_dataset', 'true')
+      console.log(`[SITME AI] Running local YOLOv8 inference for target: ${targetType} #${targetId}...`)
 
-      console.log(`[SITME AI] Forwarding image to FastAPI server for target: ${targetType} #${targetId}...`)
-
-      const apiResponse = await fetch('http://127.0.0.1:8000/analyze/image', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!apiResponse.ok) {
-        const errText = await apiResponse.text()
-        console.error('[SITME AI] FastAPI error response:', errText)
-        return response.status(502).json({ error: `AI Server Error: ${errText}` })
-      }
-
-      const result: any = await apiResponse.json()
+      const result = await yolo.analyzeImage(fileBytes, `${targetType}-${targetId}`)
       console.log('[SITME AI] Analysis complete. Result:', result)
 
       const latitudeInput = request.input('latitude')
