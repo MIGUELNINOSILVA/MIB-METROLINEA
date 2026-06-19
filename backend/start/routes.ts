@@ -41,6 +41,7 @@ router
     router.get('routes', [controllers.Routes, 'index'])
     router.get('buses', [controllers.Buses, 'index'])
     router.put('buses/:id', [controllers.Buses, 'update'])
+    router.post('buses/:id/eta', [controllers.Buses, 'eta'])
     router.get('whatsapp/chats', [controllers.Whatsapp, 'index'])
     router.get('whatsapp/chats/:phone', [controllers.Whatsapp, 'show'])
     router.delete('whatsapp/chats/:phone', [controllers.Whatsapp, 'destroy'])

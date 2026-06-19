@@ -66,6 +66,12 @@ const routes = {
     tokens: [{"old":"/api/v1/buses/:id","type":0,"val":"api","end":""},{"old":"/api/v1/buses/:id","type":0,"val":"v1","end":""},{"old":"/api/v1/buses/:id","type":0,"val":"buses","end":""},{"old":"/api/v1/buses/:id","type":1,"val":"id","end":""}],
     types: placeholder as Registry['buses.update']['types'],
   },
+  'buses.eta': {
+    methods: ["POST"],
+    pattern: '/api/v1/buses/:id/eta',
+    tokens: [{"old":"/api/v1/buses/:id/eta","type":0,"val":"api","end":""},{"old":"/api/v1/buses/:id/eta","type":0,"val":"v1","end":""},{"old":"/api/v1/buses/:id/eta","type":0,"val":"buses","end":""},{"old":"/api/v1/buses/:id/eta","type":1,"val":"id","end":""},{"old":"/api/v1/buses/:id/eta","type":0,"val":"eta","end":""}],
+    types: placeholder as Registry['buses.eta']['types'],
+  },
   'whatsapp.index': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/whatsapp/chats',
