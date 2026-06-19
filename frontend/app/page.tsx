@@ -129,7 +129,6 @@ export default function Dashboard() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
   // ETA inputs within the analyzer (only relevant when the target is a bus)
   const [analyzeSpeed, setAnalyzeSpeed] = useState<string>("25")
-  const [analyzeDestStationId, setAnalyzeDestStationId] = useState<string>("")
   const [analyzeEtaResult, setAnalyzeEtaResult] = useState<number | null>(null)
 
   // ETA Calculator states (opened from telemetry table for buses)
@@ -414,22 +413,27 @@ export default function Dashboard() {
       const data = await response.json()
       setAnalyzeResult(data.result)
 
-      // For buses: si hay velocidad + estación destino, calcula y persiste el ETA
+      // For buses: calcula y persiste el ETA a cada estación de la ruta
       setAnalyzeEtaResult(null)
-      if (analyzeTargetType === "bus" && analyzeDestStationId) {
-        const { etaMin } = estimateEta(analyzeLatitude, analyzeLongitude, analyzeSpeed, analyzeDestStationId)
-        if (etaMin != null) {
-          await fetch(`${BACKEND_URL}/buses/${analyzeTargetId}/eta`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              stationId: Number(analyzeDestStationId),
-              etaMinutes: etaMin,
-              latitude: analyzeLatitude,
-              longitude: analyzeLongitude,
-            }),
-          }).catch(() => null)
-          setAnalyzeEtaResult(etaMin)
+      if (analyzeTargetType === "bus") {
+        const routeData = computeRouteEtas()
+        const validStops = routeData?.stops.filter((s) => s.etaMin != null) ?? []
+        if (validStops.length > 0) {
+          await Promise.all(
+            validStops.map((stop) =>
+              fetch(`${BACKEND_URL}/buses/${analyzeTargetId}/eta`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  stationId: stop.station.id,
+                  etaMinutes: stop.etaMin,
+                  latitude: analyzeLatitude,
+                  longitude: analyzeLongitude,
+                }),
+              }).catch(() => null)
+            )
+          )
+          setAnalyzeEtaResult(validStops.length)
         }
       }
 
@@ -490,6 +494,40 @@ export default function Dashboard() {
 
   // Compute the live ETA from the modal inputs
   const computeEta = () => estimateEta(etaLat, etaLon, etaSpeed, etaDestStationId)
+
+  // Compute cumulative ETA to each station along the analyzer bus's route
+  const computeRouteEtas = () => {
+    const bus = buses.find((b) => b.id.toString() === analyzeTargetId)
+    if (!bus || bus.routeId == null) return null
+    const route = routes.find((r) => r.id === bus.routeId)
+    if (!route || !route.routeStations?.length) return null
+
+    const speed = parseFloat(analyzeSpeed)
+    const lat = parseFloat(analyzeLatitude)
+    const lon = parseFloat(analyzeLongitude)
+    const hasOrigin = !isNaN(lat) && !isNaN(lon)
+
+    const ordered = [...route.routeStations].sort((a, b) => a.sequenceOrder - b.sequenceOrder)
+
+    let acc = 0
+    let prevLat = lat
+    let prevLon = lon
+    const stops = ordered.map((rs) => {
+      const st = rs.station
+      let cumDistKm: number | null = null
+      let etaMin: number | null = null
+      if (hasOrigin && st.latitude != null && st.longitude != null) {
+        acc += haversineKm(prevLat, prevLon, st.latitude, st.longitude)
+        cumDistKm = Math.round(acc * 10) / 10
+        etaMin = speed > 0 ? Math.round((acc / speed) * 60) : null
+        prevLat = st.latitude
+        prevLon = st.longitude
+      }
+      return { routeStationId: rs.id, station: st, sequenceOrder: rs.sequenceOrder, cumDistKm, etaMin }
+    })
+
+    return { route, stops, hasOrigin }
+  }
 
   // Persist the computed ETA (feeds the SITME assistant via arrivals table)
   const handleSaveEta = async () => {
@@ -1135,63 +1173,79 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {/* ETA inputs (solo buses): velocidad + estación destino */}
+                  {/* ETA por ruta (solo buses): velocidad + tiempo de llegada a cada estación */}
                   {analyzeTargetId && analyzeTargetType === "bus" && (
-                    <div className="bg-slate-800/20 p-3 rounded-lg border border-slate-800 flex flex-col gap-2">
-                      <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-                        🕐 Tiempo de Llegada (ETA)
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Velocidad (km/h):</label>
+                    <div className="bg-slate-800/20 p-3 rounded-lg border border-slate-800 flex flex-col gap-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+                          🕐 Tiempo de Llegada por Ruta (ETA)
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-[10px] text-slate-500">Velocidad:</label>
                           <input
                             type="number"
                             min="1"
                             step="1"
                             value={analyzeSpeed}
                             onChange={(e) => setAnalyzeSpeed(e.target.value)}
-                            placeholder="Ej: 25"
-                            className="w-full bg-slate-800 border border-slate-700 rounded-lg text-xs p-2 text-slate-200 focus:ring-1 focus:ring-teal-500"
+                            placeholder="25"
+                            className="w-16 bg-slate-800 border border-slate-700 rounded-lg text-xs p-1.5 text-slate-200 focus:ring-1 focus:ring-teal-500 text-center"
                           />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Estación destino:</label>
-                          <select
-                            value={analyzeDestStationId}
-                            onChange={(e) => setAnalyzeDestStationId(e.target.value)}
-                            className="w-full bg-slate-800 border border-slate-700 rounded-lg text-xs p-2 text-slate-200 focus:ring-1 focus:ring-teal-500 cursor-pointer"
-                          >
-                            <option value="">-- Seleccionar --</option>
-                            {stations.map((s) => (
-                              <option key={s.id} value={s.id} disabled={s.latitude == null || s.longitude == null}>
-                                {s.name}{s.latitude == null || s.longitude == null ? " (sin coords)" : ""}
-                              </option>
-                            ))}
-                          </select>
+                          <span className="text-[10px] text-slate-500">km/h</span>
                         </div>
                       </div>
+
                       {(() => {
-                        const { distKm, etaMin } = estimateEta(analyzeLatitude, analyzeLongitude, analyzeSpeed, analyzeDestStationId)
-                        if (!analyzeDestStationId) {
+                        const routeData = computeRouteEtas()
+                        if (!routeData) {
                           return (
                             <p className="text-[10px] text-slate-500 italic">
-                              Selecciona una estación destino para estimar cuánto tarda en llegar.
+                              Este bus no tiene una ruta con estaciones asignada.
+                            </p>
+                          )
+                        }
+                        if (!routeData.hasOrigin) {
+                          return (
+                            <p className="text-[10px] text-amber-400 italic">
+                              Ingresa la latitud y longitud del bus (arriba) para calcular el ETA a cada estación.
                             </p>
                           )
                         }
                         return (
-                          <div className="flex items-center gap-4 text-xs">
-                            <span className="text-slate-400">
-                              Distancia: <span className="font-mono font-bold text-teal-400">{distKm != null ? `${distKm} km` : "—"}</span>
-                            </span>
-                            <span className="text-slate-400">
-                              ETA: <span className="font-mono font-bold text-emerald-400">{etaMin != null ? `${etaMin} min` : "—"}</span>
-                            </span>
+                          <div className="flex flex-col gap-1.5">
+                            <div className="text-[10px] text-slate-400">
+                              Ruta <span className="font-bold text-amber-400">{routeData.route.name}</span>
+                              {routeData.route.description ? ` — ${routeData.route.description}` : ""}
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              {routeData.stops.map((stop) => (
+                                <div
+                                  key={stop.routeStationId}
+                                  className="flex items-center justify-between gap-2 text-xs py-1 border-b border-slate-800/60 last:border-0"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="w-5 h-5 flex-shrink-0 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-bold flex items-center justify-center text-slate-300">
+                                      {stop.sequenceOrder}
+                                    </span>
+                                    <span className="text-slate-200 truncate">{stop.station.name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 flex-shrink-0">
+                                    <span className="font-mono text-[10px] text-slate-500">
+                                      {stop.cumDistKm != null ? `${stop.cumDistKm} km` : "—"}
+                                    </span>
+                                    <span className="font-mono font-bold text-emerald-400 w-14 text-right">
+                                      {stop.etaMin != null ? `${stop.etaMin} min` : "—"}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )
                       })()}
+
                       <p className="text-[9px] text-slate-500">
-                        Se calcula con la posición del bus de arriba y se guarda al procesar el análisis.
+                        ETA acumulado a lo largo de la ruta desde la posición del bus. Se guarda para cada estación al procesar el análisis.
                       </p>
                     </div>
                   )}
@@ -1285,7 +1339,7 @@ export default function Dashboard() {
 
                           {analyzeEtaResult != null && (
                             <div className="text-xs text-teal-200 bg-teal-950/30 p-2.5 rounded border border-teal-500/20 leading-relaxed">
-                              🕐 *ETA registrado:* este bus llegará a la estación destino en aproximadamente **{analyzeEtaResult} minutos** (velocidad {analyzeSpeed} km/h). El dato fue enviado al asistente SITME.
+                              🕐 *ETA registrado:* se calculó y guardó el tiempo de llegada a **{analyzeEtaResult} estaciones** de la ruta (velocidad {analyzeSpeed} km/h). Los datos fueron enviados al asistente SITME.
                             </div>
                           )}
 
